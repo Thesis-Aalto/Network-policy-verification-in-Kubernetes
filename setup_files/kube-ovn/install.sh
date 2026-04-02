@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+# Create a local bin directory
+mkdir -p $HOME/.local/bin
+
+# Add it to your PATH permanently
+echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
 set -euo pipefail
 
 REGISTRY="docker.io/kubeovn"
