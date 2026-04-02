@@ -34,44 +34,75 @@ def wait_for_pods_to_exist(namespace, selector):
             break
         time.sleep(2)
 
+def start_aks_store():
+    subprocess.run(["kubectl", "apply", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
+    wait_for_aks_store()
+    subprocess.run(["kubectl", "delete", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
+
+def start_istio_bookinfo():
+    subprocess.run(["kubectl", "apply", "-f", "./testbeds/istio-bookinfo/bookinfo.yaml"])
+    wait_for_istio_bookinfo()
+    subprocess.run(["kubectl", "delete", "-f", "./testbeds/istio-bookinfo/bookinfo.yaml"])
+
+
+def wait_for_aks_store():
+    subprocess.run(["kubectl", "rollout", "status", "deployment/order-service", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/makeline-service", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/store-front", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "statefulset/mongodb", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "statefulset/rabbitmq", "--timeout=120s"])
+
+def wait_for_istio_bookinfo():
+    subprocess.run(["kubectl", "rollout", "status", "deployment/details-v1", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/ratings-v1", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/reviews-v1", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/reviews-v2", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/reviews-v3", "--timeout=120s"])
+    subprocess.run(["kubectl", "rollout", "status", "deployment/productpage-v1", "--timeout=120s"])
+
 
 with open("./setup_files/CNI.txt") as file:
     for line in file.readlines():
         match line.strip():
             case "Antrea":
-                continue
                 print("Antrea is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=false"])
                 subprocess.run(["helm", "install", "antrea", "antrea/antrea", "--version", "2.6.0", "--namespace", "kube-system"])
                 wait_for_pods_to_exist("kube-system", "app=antrea")
                 subprocess.run(["kubectl", "wait", "pod", "-n", "kube-system", "-l", "app=antrea", "--for=condition=Ready", "--timeout=60s"])
+                start_aks_store()
+                start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Antrea is finished")
+                break
             case "Calico":
-                continue
                 print("Calico is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=calico"])
                 subprocess.run(["kubectl", "apply", "-f", "https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml"])
                 wait_for_kinds()
                 subprocess.run(["kubectl", "apply", "-f", "https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml"])
                 subprocess.run(["kubectl", "wait", "--for=condition=Available", "deployment/tigera-operator","-n", "tigera-operator", "--timeout=60s"])
+                start_aks_store()
+                start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Calico is finished")
             case "Canal":
-                continue
                 print("Canal is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=false"])
                 subprocess.run(["kubectl","apply","-f","https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/canal.yaml"])
                 subprocess.run(["kubectl", "wait", "pod", "-n", "kube-system", "-l", "k8s-app=canal", "--for=condition=Ready", "--timeout=60s"])
+                start_aks_store()
+                start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Canal is finished")
             case "Cilium":
-                continue
                 print("Cilium is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=false"])
                 subprocess.run(["helm", "install", "cilium", "cilium/cilium", "--version", "1.19.2", "--namespace", "kube-system"])
                 subprocess.run(["kubectl", "rollout", "status", "ds/cilium", "-n", "kube-system", "--timeout=300s"])
                 #TODO (Optional): Add control for cilium-envoy(layer 7)
+                start_aks_store()
+                start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Cilium is finished")
             case "Kube-Router":
@@ -79,6 +110,7 @@ with open("./setup_files/CNI.txt") as file:
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=false"])
                 subprocess.run(["kubectl", "apply", "-f", "https://raw.githubusercontent.com/cloudnativelabs/kube-router/master/daemonset/kubeadm-kuberouter-all-features.yaml"])
                 subprocess.run(["kubectl", "wait", "pod", "-n", "kube-system", "-l", "k8s-app=kube-router", "--for=condition=Ready", "--timeout=60s"])
+                start_aks_store()
+                start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Kube-Router is finished")
-                break
