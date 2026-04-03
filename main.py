@@ -35,15 +35,18 @@ def wait_for_pods_to_exist(namespace, selector):
         time.sleep(2)
 
 def start_aks_store():
+    print("AKS Store is started")
     subprocess.run(["kubectl", "apply", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
     wait_for_aks_store()
     subprocess.run(["kubectl", "delete", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
+    print("AKS Store is finished")
 
 def start_istio_bookinfo():
+    print("Istio Bookinfo is started")
     subprocess.run(["kubectl", "apply", "-f", "./testbeds/istio-bookinfo/bookinfo.yaml"])
     wait_for_istio_bookinfo()
     subprocess.run(["kubectl", "delete", "-f", "./testbeds/istio-bookinfo/bookinfo.yaml"])
-
+    print("Istio Bookinfo is finished")
 
 def wait_for_aks_store():
     subprocess.run(["kubectl", "rollout", "status", "deployment/order-service", "--timeout=120s"])
@@ -74,7 +77,6 @@ with open("./setup_files/CNI.txt") as file:
                 start_istio_bookinfo()
                 subprocess.run(["minikube", "delete"])
                 print("Antrea is finished")
-                break
             case "Calico":
                 print("Calico is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=calico"])
