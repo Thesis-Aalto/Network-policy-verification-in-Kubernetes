@@ -65,6 +65,7 @@ def wait_for_istio_bookinfo():
 
 
 with open("./setup_files/CNI.txt") as file:
+    
     for line in file.readlines():
         match line.strip():
             case "Antrea":
@@ -75,8 +76,25 @@ with open("./setup_files/CNI.txt") as file:
                 subprocess.run(["kubectl", "wait", "pod", "-n", "kube-system", "-l", "app=antrea", "--for=condition=Ready", "--timeout=60s"])
                 start_aks_store()
                 start_istio_bookinfo()
+                creator = NetworkCreatorClass(
+                    inventory_yaml_path="./testbeds/aks-store-demo/aks-store-all-in-one.yaml",
+                    include_deny_all=False,          # runner handles baseline deny-all now
+                    include_ingress=True,
+                    include_egress=True,
+                    max_destinations_per_policy=2,
+                )
+                runner = ConnectivityPolicyRunner(
+                    creator=creator,
+                    cni="Calico",
+                    testbed="aks-store-demo",
+                    baseline_deny_all=True,
+                    results_path="out/results.jsonl",
+                    results_csv_path="out/results.csv",
+                    probe_binary="nc",
+                )
                 subprocess.run(["minikube", "delete"])
                 print("Antrea is finished")
+                break
             case "Calico":
                 print("Calico is started")
                 subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=calico"])
