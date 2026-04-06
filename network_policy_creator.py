@@ -2,7 +2,7 @@ import yaml
 import itertools
 import os
 
-class NetworkCreatorClass():
+class NetworkPolicyCreator():
     def __init__(self, yaml_path, max_subset=2, output_dir="./network_policies"):
         self.yaml_path = yaml_path
         self.max_subset = max_subset
@@ -77,86 +77,85 @@ class NetworkCreatorClass():
     def _get_policy_ports(self, workload):
         if workload.get("service"):
             return [
-                {
-                    "port": p["targetPort"],
-                    "protocol": p["protocol"],
-                }
+                {"port": p["targetPort"], "protocol": p["protocol"]}
                 for p in workload["service"]["ports"]
                 if p.get("targetPort")
             ]
+        return []
 
     def generate_policies(self):
         workload_list = list(self.workloads.values())
 
+        # 1. Generate Egress Policies (One Source -> Multiple Destinations)
         for source in workload_list:
             destinations = [w for w in workload_list if w["name"] != source["name"]]
             for size in range(1, self.max_subset + 1):
                 for subset in itertools.combinations(destinations, size):
-                    subset = list(subset)
-                    self._generate_policy_pair(source, subset)
+                    self._generate_egress_policy(source, list(subset))
+
+        # 2. Generate Ingress Policies (Multiple Sources -> One Destination)
+        for dest in workload_list:
+            sources = [w for w in workload_list if w["name"] != dest["name"]]
+            for size in range(1, self.max_subset + 1):
+                for subset in itertools.combinations(sources, size):
+                    self._generate_ingress_policy(dest, list(subset))
 
         return self.policies
 
-    def _generate_policy_pair(self, source, dest_subset):
-        source_labels = source["pod_labels"]
+    def _generate_egress_policy(self, source, dest_subset):
         egress_rules = []
-        
         for dest in dest_subset:
             ports = self._get_policy_ports(dest)
             rule = {"to": [{"podSelector": {"matchLabels": dest["pod_labels"]}}]}
-            
             if ports:
-                rule["ports"] = [
-                    {"protocol": proto, "port": p["port"]}
-                    for p in ports
-                    for proto in ["TCP", "UDP"]
-                ]
+                rule["ports"] = [{"protocol": p["protocol"], "port": p["port"]} for p in ports]
             egress_rules.append(rule)
 
-        egress_policy = {
+        policy = {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "NetworkPolicy",
-            "metadata": {
-                "name": self._policy_name("egress", source, dest_subset),
-            },
+            "metadata": {"name": self._policy_name("egress", source, dest_subset)},
             "spec": {
-                "podSelector": {"matchLabels": source_labels},
+                "podSelector": {"matchLabels": source["pod_labels"]},
                 "policyTypes": ["Egress"],
                 "egress": egress_rules,
             },
         }
-        self.policies.append(egress_policy)
+        self.policies.append(policy)
 
-        for dest in dest_subset:
-            ports = self._get_policy_ports(dest)
-            ingress_rule = {"from": [{"podSelector": {"matchLabels": source_labels}}]}
-            
-            if ports:
-                # Apply the same dual-protocol logic for Ingress
-                ingress_rule["ports"] = [
-                    {"protocol": proto, "port": p["port"]}
-                    for p in ports
-                    for proto in ["TCP", "UDP"]
-                ]
-                
-            ingress_policy = {
-                "apiVersion": "networking.k8s.io/v1",
-                "kind": "NetworkPolicy",
-                "metadata": {
-                    "name": self._policy_name("ingress", source, [dest]),
-                },
-                "spec": {
-                    "podSelector": {"matchLabels": dest["pod_labels"]},
-                    "policyTypes": ["Ingress"],
-                    "ingress": [ingress_rule],
-                },
-            }
-            self.policies.append(ingress_policy)
+    def _generate_ingress_policy(self, dest, source_subset):
+        """Creates one policy for a destination that allows traffic FROM many sources."""
+        ports = self._get_policy_ports(dest)
+        
+        # Build the 'from' list containing multiple source podSelectors
+        ingress_from = [
+            {"podSelector": {"matchLabels": src["pod_labels"]}} 
+            for src in source_subset
+        ]
 
-    def _policy_name(self, direction, source, dest_subset):
-        dest_names = "-".join(d["name"] for d in dest_subset)
-        name = f"{direction}-{source['name']}-to-{dest_names}"
-        return name[:63]
+        ingress_rule = {"from": ingress_from}
+        if ports:
+            ingress_rule["ports"] = [{"protocol": p["protocol"], "port": p["port"]} for p in ports]
+
+        policy = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": self._policy_name("ingress", dest, source_subset)},
+            "spec": {
+                "podSelector": {"matchLabels": dest["pod_labels"]},
+                "policyTypes": ["Ingress"],
+                "ingress": [ingress_rule],
+            },
+        }
+        self.policies.append(policy)
+
+    def _policy_name(self, direction, primary, subset):
+        subset_names = "-".join(s["name"] for s in subset)
+        if direction == "egress":
+            name = f"egress-{primary['name']}-to-{subset_names}"
+        else:
+            name = f"ingress-{primary['name']}-from-{subset_names}"
+        return name[:63].rstrip("-")
     
     def save_policies(self):
         if not self.policies:
@@ -185,8 +184,3 @@ class NetworkCreatorClass():
         return saved
 
 
-
-networkClass = NetworkCreatorClass("/home/kocm1/Network-policy-verification-in-Kubernetes/testbeds/istio-bookinfo/bookinfo.yaml")
-networkClass.parse_kubernetes_yaml()
-networkClass.generate_policies()
-networkClass.save_policies()
