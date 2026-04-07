@@ -2,18 +2,13 @@ import subprocess
 import time
 from network_policy_creator import NetworkPolicyCreator 
 
-def create_network_policies():
-    aksNetworkPolicyCreator = NetworkPolicyCreator(yaml_path="testbeds/aks-store-demo/aks-store-all-in-one.yaml", output_dir="network_policies/aks")
-    bookinfoNetworkPolicyCreator = NetworkPolicyCreator(yaml_path="testbeds/istio-bookinfo/bookinfo.yaml", output_dir="network_policies/bookinfo")
-
-    aksNetworkPolicyCreator.parse_kubernetes_yaml()
-    bookinfoNetworkPolicyCreator.parse_kubernetes_yaml()
-
-    aksNetworkPolicyCreator.generate_policies()
-    bookinfoNetworkPolicyCreator.generate_policies()
-
-    aksNetworkPolicyCreator.save_policies()
-    bookinfoNetworkPolicyCreator.save_policies()
+def create_network_policies(yaml_path, output_dir):
+    networkPolicyCreator = NetworkPolicyCreator(yaml_path=yaml_path, output_dir=output_dir)
+    networkPolicyCreator.parse_kubernetes_yaml()
+    networkPolicyCreator.generate_default_policies()
+    networkPolicyCreator.save_default_policies()
+    networkPolicyCreator.generate_policies()
+    networkPolicyCreator.save_policies()
 
 def api_kind_exists(group_version: str, kind: str):
     p = subprocess.run(
@@ -77,7 +72,8 @@ def wait_for_istio_bookinfo():
     subprocess.run(["kubectl", "rollout", "status", "deployment/productpage-v1", "--timeout=120s"])
 
 if __name__ == "__main__":
-    create_network_policies()
+    create_network_policies("testbeds/aks-store-demo/aks-store-all-in-one.yaml", "network_policies/aks")
+    create_network_policies("testbeds/istio-bookinfo/bookinfo.yaml", "network_policies/bookinfo")
 
     with open("./setup_files/CNI.txt") as file:
         
