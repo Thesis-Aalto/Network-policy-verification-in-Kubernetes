@@ -11,7 +11,17 @@ class NetworkPolicyCreator():
         self.policies = []
         self.output_dir = output_dir
 
-    def parse_kubernetes_yaml(self):
+        self._setup()
+
+    def _setup(self):
+        self._parse_kubernetes_yaml()
+        self._generate_default_policies()
+        #self.save_default_policies()
+        self._generate_policies()
+        #self.save_policies()
+    def get_workloads(self):
+        return self.workloads
+    def _parse_kubernetes_yaml(self):
         with open(self.yaml_path, 'r') as file:
             documents = list(yaml.safe_load_all(file))
         for document in documents:
@@ -83,7 +93,7 @@ class NetworkPolicyCreator():
             ]
         return []
 
-    def generate_policies(self):
+    def _generate_policies(self):
         workload_list = list(self.workloads.values())
 
         # 1. Generate Egress Policies (One Source -> Multiple Destinations)
@@ -157,7 +167,7 @@ class NetworkPolicyCreator():
             name = f"ingress-{primary['name']}-from-{subset_names}"
         return name[:63].rstrip("-")
     
-    def save_policies(self):
+    def _save_policies(self):
         if not self.policies:
             raise RuntimeError("No policies to save. Run generate_policies() first.")
 
@@ -182,8 +192,8 @@ class NetworkPolicyCreator():
 
         print(f"Saved {len(saved)} policies to {self.output_dir}, organized by pod labels.")
         return saved
-        
-    def generate_default_policies(self):
+
+    def _generate_default_policies(self):
         deny_all = {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "NetworkPolicy",
@@ -214,7 +224,7 @@ class NetworkPolicyCreator():
         }
         return [deny_all, allow_dns]
  
-    def save_default_policies(self):
+    def _save_default_policies(self):
         defaults = self.generate_default_policies()
         saved = []
         defaults_dir = os.path.join(self.output_dir, "default")
