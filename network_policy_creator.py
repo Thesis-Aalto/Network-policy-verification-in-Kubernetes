@@ -15,12 +15,13 @@ class NetworkPolicyCreator():
 
     def _setup(self):
         self._parse_kubernetes_yaml()
-        self._generate_default_policies()
-        #self.save_default_policies()
+        self._save_default_policies()
         self._generate_policies()
-        #self.save_policies()
+        self._save_policies()
+
     def get_workloads(self):
         return self.workloads
+        
     def _parse_kubernetes_yaml(self):
         with open(self.yaml_path, 'r') as file:
             documents = list(yaml.safe_load_all(file))
@@ -225,7 +226,7 @@ class NetworkPolicyCreator():
         return [deny_all, allow_dns]
  
     def _save_default_policies(self):
-        defaults = self.generate_default_policies()
+        defaults = self._generate_default_policies()
         saved = []
         defaults_dir = os.path.join(self.output_dir, "default")
         os.makedirs(defaults_dir, exist_ok=True)

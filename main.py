@@ -1,14 +1,7 @@
 import subprocess
 import time
 from network_policy_creator import NetworkPolicyCreator 
-
-def create_network_policies(yaml_path, output_dir):
-    networkPolicyCreator = NetworkPolicyCreator(yaml_path=yaml_path, output_dir=output_dir)
-    networkPolicyCreator.parse_kubernetes_yaml()
-    networkPolicyCreator.generate_default_policies()
-    networkPolicyCreator.save_default_policies()
-    networkPolicyCreator.generate_policies()
-    networkPolicyCreator.save_policies()
+from connectivity_checker import ConnectivityChecker
 
 def api_kind_exists(group_version: str, kind: str):
     p = subprocess.run(
@@ -42,10 +35,12 @@ def wait_for_pods_to_exist(namespace, selector):
             break
         time.sleep(2)
 
-def start_aks_store():
+def start_aks_store(workloads):
     print("AKS Store is started")
     subprocess.run(["kubectl", "apply", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
     wait_for_aks_store()
+    aks_connectivity_checker = ConnectivityChecker("/home/kocm1/Network-policy-verification-in-Kubernetes/network_policies/aks", "", aks_network_policy_creator.get_workloads())
+    aks_connectivity_checker.start()
     subprocess.run(["kubectl", "delete", "-f", "./testbeds/aks-store-demo/aks-store-all-in-one.yaml"])
     print("AKS Store is finished")
 
@@ -72,25 +67,26 @@ def wait_for_istio_bookinfo():
     subprocess.run(["kubectl", "rollout", "status", "deployment/productpage-v1", "--timeout=120s"])
 
 if __name__ == "__main__":
-    create_network_policies("testbeds/aks-store-demo/aks-store-all-in-one.yaml", "network_policies/aks")
-    create_network_policies("testbeds/istio-bookinfo/bookinfo.yaml", "network_policies/bookinfo")
+
+    aks_network_policy_creator = NetworkPolicyCreator(yaml_path="testbeds/aks-store-demo/aks-store-all-in-one.yaml", output_dir="network_policies/aks")
+    istio_network_policy_creator = NetworkPolicyCreator(yaml_path="testbeds/istio-bookinfo/bookinfo.yaml", output_dir="network_policies/bookinfo")
 
     with open("./setup_files/CNI.txt") as file:
         
         for line in file.readlines():
             match line.strip():
                 case "Antrea":
+                    # aks_connectivity_checker = ConnectivityChecker("", "", aks_network_policy_creator.get_workloads())
                     print("Antrea is started")
                     subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=false"])
                     subprocess.run(["helm", "install", "antrea", "antrea/antrea", "--version", "2.6.0", "--namespace", "kube-system"])
                     wait_for_pods_to_exist("kube-system", "app=antrea")
                     subprocess.run(["kubectl", "wait", "pod", "-n", "kube-system", "-l", "app=antrea", "--for=condition=Ready", "--timeout=60s"])
-                    start_aks_store()
+                    start_aks_store(aks_network_policy_creator.get_workloads())
 
-                    start_istio_bookinfo()
+                    #start_istio_bookinfo()
                     subprocess.run(["minikube", "delete"])
                     print("Antrea is finished")
-                    break
                 case "Calico":
                     print("Calico is started")
                     subprocess.run(["minikube", "start", "--network-plugin=cni", "--cni=calico"])
