@@ -182,5 +182,50 @@ class NetworkPolicyCreator():
 
         print(f"Saved {len(saved)} policies to {self.output_dir}, organized by pod labels.")
         return saved
+        
+    def generate_default_policies(self):
+        deny_all = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "default-deny-all"},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Ingress", "Egress"],
+                "ingress": [],
+                "egress": [],
+            },
+        }
+        allow_dns = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "allow-dns"},
+            "spec": {
+                "podSelector": {},
+                "policyTypes": ["Egress"],
+                "egress": [
+                    {
+                        "ports": [
+                            {"protocol": "UDP", "port": 53},
+                            {"protocol": "TCP", "port": 53},
+                        ]
+                    }
+                ],
+            },
+        }
+        return [deny_all, allow_dns]
+ 
+    def save_default_policies(self):
+        defaults = self.generate_default_policies()
+        saved = []
+        defaults_dir = os.path.join(self.output_dir, "default")
+        os.makedirs(defaults_dir, exist_ok=True)
+        for policy in defaults:
+            name = policy["metadata"]["name"]
+            filepath = os.path.join(defaults_dir, f"{name}.yaml")
+            with open(filepath, "w", encoding="utf-8") as f:
+                yaml.dump(policy, f, sort_keys=False)
+            saved.append(filepath)
+        print(f"Saved {len(saved)} default policies to {defaults_dir}.")
+        return saved
 
 
