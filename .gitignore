@@ -1,3 +1,4 @@
 network_policies/
+!reachability_matrix/network_policies
 __pycache__/
 *.csv
