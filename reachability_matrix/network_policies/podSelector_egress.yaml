@@ -24,8 +24,3 @@ spec:
       ports:
         - protocol: TCP
           port: 27017
-    - ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
