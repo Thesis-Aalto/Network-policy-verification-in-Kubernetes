@@ -10,6 +10,7 @@ class ReachabilityMatrixCreator():
         self.yaml_parse(app_yaml_path)
         self.get_pods_and_selectors()
         self.parse_network_yamls(network_yaml_path)
+        self.match_pods_yamls()
     
     def yaml_parse(self, yaml_path):
         with open(yaml_path, "r") as file:
@@ -37,7 +38,7 @@ class ReachabilityMatrixCreator():
                 policy_name = yaml_dict["metadata"]["name"]
                 policy_namespace = yaml_dict["metadata"].get("namespace") or "default"
                 policy_types = yaml_dict["spec"]["policyTypes"]
-                pod_selectors = yaml_dict["spec"]["podSelector"]
+                pod_selectors = yaml_dict["spec"]["podSelector"].get("matchLabels") or {} 
                 policy_rules = []
                 for egress_rule in yaml_dict["spec"].get("egress") or []:
                     rule_type = "Egress"
@@ -90,7 +91,25 @@ class ReachabilityMatrixCreator():
                         "policy_rules": policy_rules
                     } 
                 )
- 
+    def match_pods_yamls(self):
+        for i in range(len(self.pods_and_selectors)):
+            self.pods_and_selectors[i]["network_policies"] = []
+            pod = self.pods_and_selectors[i]
+            for network_policy in self.network_policies:
+                is_matching = True
+                pod_selector = network_policy["pod_selectors"]
+                if network_policy["policy_namespace"] == pod["pod_namespace"]:
+                    for target_key, target_value in pod_selector.items():
+                        if not target_key in pod["pod_labels"] or pod["pod_labels"][target_key] != target_value:
+                            is_matching = False
+                else:
+                    is_matching = False
+                if is_matching:
+                    self.pods_and_selectors[i]["network_policies"].append(network_policy)
+            
+        
+                    
+    
 
 if __name__ == "__main__":
     reachabilityMatrixCreator = ReachabilityMatrixCreator("./application/app.yaml", "./network_policies")
