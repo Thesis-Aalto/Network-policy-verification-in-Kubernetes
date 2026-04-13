@@ -1,22 +1,19 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: order-service-pod-ingress
-  namespace: backend
+  name: frontend-internal-ingress
+  namespace: frontend
 spec:
   podSelector:
     matchLabels:
-      app: order-service          
+      app: store-front
   policyTypes:
     - Ingress
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              app: makeline-service   
-        - podSelector:
-            matchLabels:
-              app: store-front      
+              app: virtual-customer
       ports:
         - protocol: TCP
-          port: 3000
+          port: 8080
