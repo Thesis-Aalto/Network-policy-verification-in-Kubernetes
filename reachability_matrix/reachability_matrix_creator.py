@@ -11,6 +11,7 @@ class ReachabilityMatrixCreator():
 
         self.yaml_parse(app_yaml_path)
         self.get_services_and_pods()
+        self.match_pods_services()
         self.parse_network_yamls(network_yaml_path)
         self.match_pods_policies()
         #self.create_reachability_matrix()
@@ -41,19 +42,19 @@ class ReachabilityMatrixCreator():
             elif component["kind"] == "Service":
                 service_name = component["metadata"]["name"]
                 service_namespace = component["metadata"]["namespace"]
-                service_selector = component["spec"]["selector"]
+                service_selectors = component["spec"]["selector"]
                 ports = []
                 for port in component["spec"]["ports"]:
                     ports.append({"port": port["port"], "targetPort": port.get("targetPort") or port["port"]})
                 self.services.append({
                     "service_name": service_name,
                     "service_namespace": service_namespace,
-                    "service_selector": service_selector,
+                    "service_selectors": service_selectors,
                     "ports": ports
                 })
             else:
                 continue
-    
+
     def parse_network_yamls(self, yaml_path):
         network_files = [network_file for network_file in listdir(yaml_path)]
         for network_file in network_files:
@@ -115,6 +116,22 @@ class ReachabilityMatrixCreator():
                         "policy_rules": policy_rules
                     } 
                 )
+    def match_pods_services(self):
+        for i in range(len(self.pods_and_selectors)):
+            self.pods_and_selectors[i]["services"] = []
+            pod = self.pods_and_selectors[i]
+            for service in self.services:
+                is_matching = True
+                pod_selectors = service["service_selectors"]
+                if service["service_namespace"] == pod["pod_namespace"]:
+                    for target_key, target_value in pod_selectors.items():
+                        if not target_key in pod["pod_labels"] or pod["pod_labels"][target_key] != target_value:
+                            is_matching = False
+                else:
+                    is_matching = False
+                if is_matching:
+                    self.pods_and_selectors[i]["services"].append(service)
+                
 
     def match_pods_policies(self):
         for i in range(len(self.pods_and_selectors)):
