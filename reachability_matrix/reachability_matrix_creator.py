@@ -4,29 +4,53 @@ from os import listdir
 class ReachabilityMatrixCreator():
     def __init__(self, app_yaml_path, network_yaml_path):
         self.yaml_dict = []
+        self.services = []
         self.pods_and_selectors = []
         self.network_policies = []
+        self.reachability_matrix = {}
 
         self.yaml_parse(app_yaml_path)
-        self.get_pods_and_selectors()
+        self.get_services_and_pods()
         self.parse_network_yamls(network_yaml_path)
-        self.match_pods_yamls()
+        self.match_pods_policies()
+        #self.create_reachability_matrix()
     
     def yaml_parse(self, yaml_path):
         with open(yaml_path, "r") as file:
             self.yaml_dict = list(yaml.safe_load_all(file))
     
-    def get_pods_and_selectors(self):
+    def get_services_and_pods(self):
         self.pods_and_selectors = []
         for component in self.yaml_dict:
             pod_name = component["metadata"]["name"]
             pod_namespace = component["metadata"].get("namespace") or "default"
             if component["kind"] == "Deployment" or component["kind"] == "StatefulSet":
                 pod_labels = component["spec"]["template"]["metadata"]["labels"]
-                self.pods_and_selectors.append({"pod_name": pod_name, "pod_namespace": pod_namespace, "pod_labels": pod_labels})
+                ports = []
+                for container in component["spec"]["template"]["spec"]["containers"]:
+                    for port in container.get("ports") or []:
+                        ports.append(port["containerPort"])
+                self.pods_and_selectors.append({"pod_name": pod_name, "pod_namespace": pod_namespace, "pod_labels": pod_labels, "ports": ports})
             elif component["kind"] == "Pod":
                 pod_labels = component["metadata"]["labels"]
-                self.pods_and_selectors.append({"pod_name": pod_name, "pod_namespace": pod_namespace, "pod_labels": pod_labels})
+                ports = []
+                for container in component["spec"]["containers"]:
+                    for port in container["ports"]:
+                        ports.append(port["containerPort"])
+                self.pods_and_selectors.append({"pod_name": pod_name, "pod_namespace": pod_namespace, "pod_labels": pod_labels, "ports": ports})
+            elif component["kind"] == "Service":
+                service_name = component["metadata"]["name"]
+                service_namespace = component["metadata"]["namespace"]
+                service_selector = component["spec"]["selector"]
+                ports = []
+                for port in component["spec"]["ports"]:
+                    ports.append({"port": port["port"], "targetPort": port.get("targetPort") or port["port"]})
+                self.services.append({
+                    "service_name": service_name,
+                    "service_namespace": service_namespace,
+                    "service_selector": service_selector,
+                    "ports": ports
+                })
             else:
                 continue
     
@@ -91,7 +115,8 @@ class ReachabilityMatrixCreator():
                         "policy_rules": policy_rules
                     } 
                 )
-    def match_pods_yamls(self):
+
+    def match_pods_policies(self):
         for i in range(len(self.pods_and_selectors)):
             self.pods_and_selectors[i]["network_policies"] = []
             pod = self.pods_and_selectors[i]
@@ -106,7 +131,26 @@ class ReachabilityMatrixCreator():
                     is_matching = False
                 if is_matching:
                     self.pods_and_selectors[i]["network_policies"].append(network_policy)
-            
+    """
+
+    def find_policy_targets(self, policy_rule):
+        target_pods = []
+        for pod in self.pods_and_selectors:
+            if network_policy["policy_namespace"] == pod["pod_namespace"]:
+                
+
+
+
+    def create_reachability_matrix(self):
+        for pod in self.pods_and_selectors:
+            for network_policy in  pod["network_policies"]:
+                for policy_rule in network_policy["policy_rules"]:
+                    if policy_rule["rule_type"] == "Ingress":
+                        policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
+
+                    else:
+    """
+
         
                     
     
