@@ -14,7 +14,7 @@ class ReachabilityMatrixCreator():
         self.match_pods_services()
         self.parse_network_yamls(network_yaml_path)
         self.match_pods_policies()
-        #self.create_reachability_matrix()
+        self.create_reachability_matrix()
     
     def yaml_parse(self, yaml_path):
         with open(yaml_path, "r") as file:
@@ -89,8 +89,8 @@ class ReachabilityMatrixCreator():
                 for ingress_rule in yaml_dict["spec"].get("ingress") or []:
                     rule_type = "Ingress"
                     selectors = []
-                    target_ports = egress_rule["ports"]
-                    for selector in egress_rule["to"]:
+                    target_ports = ingress_rule["ports"]
+                    for selector in ingress_rule["from"]:
                         if selector.get("namespaceSelector"):
                             selector_type = "namespaceSelector"
                             labels = selector["namespaceSelector"]["matchLabels"]
@@ -116,6 +116,7 @@ class ReachabilityMatrixCreator():
                         "policy_rules": policy_rules
                     } 
                 )
+
     def match_pods_services(self):
         for i in range(len(self.pods_and_selectors)):
             self.pods_and_selectors[i]["services"] = []
@@ -148,25 +149,45 @@ class ReachabilityMatrixCreator():
                     is_matching = False
                 if is_matching:
                     self.pods_and_selectors[i]["network_policies"].append(network_policy)
-    """
 
-    def find_policy_targets(self, policy_rule):
-        target_pods = []
+
+    def find_policy_targets(self, policy_rule, policy_namespace):
+        policy_targets = []
         for pod in self.pods_and_selectors:
-            if network_policy["policy_namespace"] == pod["pod_namespace"]:
-                
+            is_matching = True
+            namespace_selector_exist = False
+            for selector in policy_rule["selectors"]:
+                if selector["selector_type"] == "podSelector":
+                    for label_key, label_value in selector["labels"].items():
+                        if not label_key in pod["pod_labels"] or pod["pod_labels"][label_key] != label_value:
+                            is_matching = False
+                else:
+                    for label_key, label_value in selector["labels"].items():
+                        namespace_selector_exist = True
+                        if pod["pod_namespace"] != label_value:
+                            is_matching = False
 
+            if not namespace_selector_exist and pod["pod_namespace"] != policy_namespace:
+                is_matching = False
+            if is_matching:
+                policy_targets.append(pod)
+        return policy_targets
+                
+                
 
 
     def create_reachability_matrix(self):
         for pod in self.pods_and_selectors:
             for network_policy in  pod["network_policies"]:
                 for policy_rule in network_policy["policy_rules"]:
+                    policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
+                    print(policy_rule)
+                    print(policy_targets)
                     if policy_rule["rule_type"] == "Ingress":
-                        policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
-
+                        print("aaa")
                     else:
-    """
+                        print("aaaa")
+
 
         
                     
