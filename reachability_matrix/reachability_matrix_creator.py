@@ -15,6 +15,7 @@ class ReachabilityMatrixCreator():
         self.parse_network_yamls(network_yaml_path)
         self.match_pods_policies()
         self.create_reachability_matrix()
+        self.to_reachability_table()
     
     def yaml_parse(self, yaml_path):
         with open(yaml_path, "r") as file:
@@ -174,19 +175,47 @@ class ReachabilityMatrixCreator():
         return policy_targets
                 
                 
-
-
     def create_reachability_matrix(self):
         for pod in self.pods_and_selectors:
-            for network_policy in  pod["network_policies"]:
-                for policy_rule in network_policy["policy_rules"]:
-                    policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
-                    print(policy_rule)
-                    print(policy_targets)
-                    if policy_rule["rule_type"] == "Ingress":
-                        print("aaa")
-                    else:
-                        print("aaaa")
+            pod_key = f"{pod['pod_namespace']}/{pod['pod_name']}"
+            if pod_key not in self.reachability_matrix:
+                self.reachability_matrix[pod_key] = {}
+
+            for target_pod in self.pods_and_selectors:
+                target_key = f"{target_pod['pod_namespace']}/{target_pod['pod_name']}"
+                self.reachability_matrix[pod_key][target_key] = []
+
+                for network_policy in pod["network_policies"]:
+                    for policy_rule in network_policy["policy_rules"]:
+                        if policy_rule["rule_type"] == "Ingress":
+                            policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
+                            if any(t["pod_name"] == target_pod["pod_name"] for t in policy_targets):
+                                for port in policy_rule["target_ports"]:
+                                    self.reachability_matrix[pod_key][target_key].append(port["port"])
+
+                for network_policy in target_pod["network_policies"]:
+                    for policy_rule in network_policy["policy_rules"]:
+                        if policy_rule["rule_type"] == "Egress":
+                            policy_targets = self.find_policy_targets(policy_rule, network_policy["policy_namespace"])
+                            if any(t["pod_name"] == pod["pod_name"] for t in policy_targets):
+                                for port in policy_rule["target_ports"]:
+                                    self.reachability_matrix[pod_key][target_key].append(port["port"])
+
+    def to_reachability_table(self):
+        pods = list(self.reachability_matrix.keys())
+        col_width = max(len(p) for p in pods) + 2
+
+        header = " " * col_width + "".join(p.ljust(col_width) for p in pods)
+        print(header)
+
+        for receiver in pods:
+            row = receiver.ljust(col_width)
+            for sender in pods:
+                cell = self.reachability_matrix[receiver][sender]
+                value = 1 if len(cell) > 0 else 0
+                row += str(value).ljust(col_width)
+            print(row)
+
 
 
         
