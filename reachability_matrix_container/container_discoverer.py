@@ -39,9 +39,6 @@ class ContainerDiscoverer():
             for port in container.ports:
                 print(f"Port: {port}")
             print()
-                    
-
-                
                 
 
 
