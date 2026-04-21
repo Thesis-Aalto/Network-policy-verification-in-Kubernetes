@@ -2,6 +2,7 @@ import yaml
 
 class Container():
     def __init__(self, name, pod_name, labels, namespace, ports):
+        self.identity = pod_name+"-"+name
         self.name = name
         self.pod_name = pod_name
         self.labels = labels

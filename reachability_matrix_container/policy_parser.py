@@ -19,12 +19,11 @@ class Port():
         self.portNumber = portNumber
         self.protocol = protocol
 
-
-
 class PolicyParser():
     def __init__(self, policy_path):
         self.network_policies = []
         self.parse_policies(policy_path)
+        
 
     def parse_policies(self, policy_path):
         for file in os.listdir(policy_path):
