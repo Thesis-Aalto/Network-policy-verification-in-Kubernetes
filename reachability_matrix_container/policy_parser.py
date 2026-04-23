@@ -9,9 +9,10 @@ class Policy():
         self.rules = rules
 
 class PolicyRule():
-    def __init__(self, policy_type, target_labels, ports):
+    def __init__(self, policy_type, target_labels, namespace_label, ports):
         self.policy_type = policy_type
         self.target_labels = target_labels
+        self.namespace_label = namespace_label
         self.ports = ports
 
 class Port():
@@ -38,34 +39,36 @@ class PolicyParser():
             rules = []
             for policy_type in policy["spec"]["policyTypes"]:
                 for rule in policy["spec"][policy_type.lower()]:
-                    target_labels = {}
-                    if policy_type == "Ingress":
-                        for label in rule["from"]:
-                            selector = label["podSelector"].get("matchLabels") or {}
-                            if selector == {}:
-                                break
-                            else :
-                                for key, item in selector.items():
-                                    target_labels[key] = item
-                    else:
-                        for label in rule["to"]:
-                            selector = label["podSelector"].get("matchLabels") or {}
-                            if selector == {}:
-                                break
-                            else :
-                                for key, item in selector.items():
-                                    target_labels[key] = item
-                            
+                    target_labels, namespace_labels = self.get_target_labels(policy_type, rule)                 
                     ports = []
                     for port in rule["ports"]:
                         portNumber = port["port"]
                         protocol = port["protocol"]
                         new_port = Port(portNumber, protocol)
                         ports.append(new_port)
-                    new_rule = PolicyRule(policy_type, target_labels, ports)
+                    new_rule = PolicyRule(policy_type, target_labels, namespace_labels, ports)
                     rules.append(new_rule)
             new_network_policy = Policy(name, namespace, source_labels, rules)
             self.network_policies.append(new_network_policy)
+
+    def get_target_labels(self, policy_type, rule):
+        target_labels = {}
+        namespace_label = ""
+        labels = {}
+        if policy_type == "Ingress":
+            labels = rule["from"]
+        else:
+            labels = rule["to"]
+        for label in labels:
+            pod_selector = label.get("podSelector", {}).get("matchLabels", {})
+            namespace_selector = label.get("namespaceSelector", {}).get("matchLabels", {})
+            if pod_selector != {}:
+                for key, item in pod_selector.items():
+                    target_labels[key] = item
+            if namespace_selector != {}:
+                for key, item in namespace_selector.items():
+                    namespace_label = item
+        return target_labels, namespace_label
 
     def print_network_policy(self):
         for policy in self.network_policies:
@@ -77,9 +80,8 @@ class PolicyParser():
                 for port in rule.ports:
                     print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")
                 print()
-            print()
+            print()      
 
-            
 
 if __name__ == "__main__":
     parser = PolicyParser("./network_policies")

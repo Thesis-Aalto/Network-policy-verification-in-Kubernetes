@@ -1,4 +1,4 @@
-from policy_parser import Policy
+from policy_parser import Policy, PolicyRule
 
 class ReachabilityCreator():
     def __init__(self, containers, network_policies):
@@ -24,19 +24,22 @@ class ReachabilityCreator():
                     
     def find_selected_containers(self, policy_component):
         selected_containers = []
+        labels_dict = {}
+        namespace = ""
+        if type(policy_component) == Policy:
+            labels_dict = policy_component.source_labels
+        else:
+            labels_dict = policy_component.target_labels
+            namespace = policy_component.namespace_label
         for container in self.containers:
+            if type(policy_component) == Policy and policy_component.namespace != container.namespace:
+                continue
             is_added = True
-            labels_dict = {}
-            if type(policy_component) == Policy:
-                if policy_component.namespace != container.namespace:
-                    continue
-                labels_dict = policy_component.source_labels
-            else:
-                labels_dict = policy_component.target_labels
-
             for key, value in labels_dict.items():
                 if key not in container.labels or container.labels[key] != value:
                     is_added = False
+            if type(policy_component) == PolicyRule and namespace != container.namespace:
+                is_added = False
             if is_added:
                 selected_containers.append(container)
         return selected_containers
