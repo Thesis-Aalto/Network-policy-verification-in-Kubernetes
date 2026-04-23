@@ -1,13 +1,13 @@
 import yaml
 
 class Container():
-    def __init__(self, name, pod_name, labels, namespace, ports):
-        self.identity = pod_name+"-"+name
+    def __init__(self, name, pod_name, labels, namespace, port):
+        self.identity = pod_name+"-"+name+"-"+str(port)
         self.name = name
         self.pod_name = pod_name
         self.labels = labels
         self.namespace = namespace
-        self.ports = ports
+        self.port = port
 
 class ContainerDiscoverer():
     def __init__(self, yaml_path):
@@ -27,18 +27,14 @@ class ContainerDiscoverer():
                 labels = component["metadata"].get("labels") or {}
                 pod_name = component["metadata"]["name"]
                 for container in component["spec"]["containers"]:
-                    ports = []
                     name = container["name"]
                     for port in container["ports"]:
-                        ports.append(port["containerPort"])
-                    new_container = Container(name, pod_name, labels, namespace, ports)
+                        new_container = Container(name, pod_name, labels, namespace, port["containerPort"])
                     self.containers.append(new_container)
 
     def print_containers(self):
         for container in self.containers:
-            print(f"Container Name: {container.name}\nPod Name: {container.pod_name}\nLabels: {container.labels}\nNamespace: {container.namespace}\nPorts")
-            for port in container.ports:
-                print(f"Port: {port}")
+            print(f"Identity:{container.identity}\nContainer Name: {container.name}\nPod Name: {container.pod_name}\nLabels: {container.labels}\nNamespace: {container.namespace}\nPort: {container.port}")
             print()
                 
 
