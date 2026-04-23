@@ -49,8 +49,13 @@ class PolicyParser():
                                     target_labels[key] = item
                     else:
                         for label in rule["to"]:
-                            for key, item in label.items():
-                                target_labels[key] = item
+                            selector = label["podSelector"].get("matchLabels") or {}
+                            if selector == {}:
+                                break
+                            else :
+                                for key, item in selector.items():
+                                    target_labels[key] = item
+                            
                     ports = []
                     for port in rule["ports"]:
                         portNumber = port["port"]

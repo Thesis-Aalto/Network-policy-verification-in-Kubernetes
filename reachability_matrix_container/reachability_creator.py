@@ -19,11 +19,9 @@ class ReachabilityCreator():
                 else:
                     self.fill_matrix(source_containers, target_containers, egress_matrix)
         
-
         self.intersect_egress_and_igress(egress_matrix, ingress_matrix)
         print(self.reachability_matrix)
                     
-
     def find_selected_containers(self, policy_component):
         selected_containers = []
         for container in self.containers:
@@ -39,7 +37,6 @@ class ReachabilityCreator():
             for key, value in labels_dict.items():
                 if key not in container.labels or container.labels[key] != value:
                     is_added = False
-                
             if is_added:
                 selected_containers.append(container)
         return selected_containers
@@ -55,7 +52,7 @@ class ReachabilityCreator():
                     matrix[s_container.identity][t_container.identity] = 1
         return matrix
     
-    def fill_matrix(self, source_containers, target_containers, matrix):
+    def fill_matrix(self, source_containers, target_containers, matrix):  
         for s_container in source_containers:
             for t_container in target_containers:
                 if matrix[s_container.identity][s_container.identity] == 1:
@@ -64,6 +61,9 @@ class ReachabilityCreator():
                     self.zero_all_row(s_container, matrix)
                     matrix[s_container.identity][t_container.identity] = 1
                     matrix[s_container.identity][s_container.identity] = 1
+            if len(target_containers) == 0:
+                self.zero_all_row(s_container, matrix)
+                matrix[s_container.identity][s_container.identity] = 1
     
     def zero_all_row(self, source_container, matrix):
         for container in self.containers:
