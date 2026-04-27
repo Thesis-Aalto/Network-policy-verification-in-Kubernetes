@@ -39,7 +39,7 @@ class PolicyParser():
             rules = []
             for policy_type in policy["spec"]["policyTypes"]:
                 for rule in policy["spec"][policy_type.lower()]:
-                    target_labels, namespace_labels = self.get_target_labels(policy_type, rule)                 
+                    target_labels, namespace_labels = self.get_target_labels(policy_type, rule, namespace)                 
                     ports = []
                     for port in rule["ports"]:
                         portNumber = port["port"]
@@ -51,9 +51,9 @@ class PolicyParser():
             new_network_policy = Policy(name, namespace, source_labels, rules)
             self.network_policies.append(new_network_policy)
 
-    def get_target_labels(self, policy_type, rule):
+    def get_target_labels(self, policy_type, rule, namespace):
         target_labels = {}
-        namespace_label = "default"
+        namespace_label = namespace
         labels = {}
         if policy_type == "Ingress":
             labels = rule["from"]

@@ -37,11 +37,17 @@ class ReachabilityCreator():
             for key, value in labels_dict.items():
                 if key not in container.labels or container.labels[key] != value:
                     is_added = False
-            if type(policy_component) == PolicyRule and namespace != container.namespace:
+            if type(policy_component) == PolicyRule and (namespace != container.namespace or not self.is_match_container_policy(container, policy_component)):
                 is_added = False
             if is_added:
                 selected_containers.append(container)
         return selected_containers
+    
+    def is_match_container_policy(self, container, policy_rule):
+        for port in policy_rule.ports:
+            if port.portNumber == container.port:
+                return True
+        return False
     
     def initialize_matrix(self):
         matrix = {}
@@ -63,7 +69,7 @@ class ReachabilityCreator():
                     self.zero_all_row(s_container, matrix)
                     matrix[s_container.identity][t_container.identity] = 1
                     matrix[s_container.identity][s_container.identity] = 1
-            if len(target_containers) == 0:
+            if len(target_containers) == 0 and matrix[s_container.identity][s_container.identity] == 0:
                 self.zero_all_row(s_container, matrix)
                 matrix[s_container.identity][s_container.identity] = 1
     
