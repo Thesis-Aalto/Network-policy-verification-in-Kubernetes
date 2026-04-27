@@ -43,7 +43,7 @@ class PolicyParser():
                     ports = []
                     for port in rule["ports"]:
                         portNumber = port["port"]
-                        protocol = port["protocol"]
+                        protocol = port.get("protocol") or "TCP"
                         new_port = Port(portNumber, protocol)
                         ports.append(new_port)
                     new_rule = PolicyRule(policy_type, target_labels, namespace_labels, ports)
@@ -53,7 +53,7 @@ class PolicyParser():
 
     def get_target_labels(self, policy_type, rule):
         target_labels = {}
-        namespace_label = ""
+        namespace_label = "default"
         labels = {}
         if policy_type == "Ingress":
             labels = rule["from"]
