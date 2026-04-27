@@ -37,7 +37,7 @@ class ReachabilityCreator():
             for key, value in labels_dict.items():
                 if key not in container.labels or container.labels[key] != value:
                     is_added = False
-            if type(policy_component) == PolicyRule and (namespace != container.namespace or not self.is_match_container_policy(container, policy_component)):
+            if type(policy_component) == PolicyRule and namespace != container.namespace:
                 is_added = False
             if is_added:
                 selected_containers.append(container)
