@@ -1,40 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: basic-nginx
+  name: web-app-deployment
+  labels:
+    app: my-web-app
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app: my-web-app
   template:
     metadata:
       labels:
-        app: nginx
+        app: my-web-app
     spec:
       containers:
-      - name: nginx
-        image: nginx:1.25
+      - name: nginx-container
+        image: nginx:1.21
         ports:
         - containerPort: 80
 
 ---
 
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
-  name: redis
+  name: web-app-service
 spec:
   selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-      - name: redis
-        image: redis:alpine
-        ports:
-        - containerPort: 6379
+    app: my-web-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
