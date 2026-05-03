@@ -1,7 +1,7 @@
 import yaml
 
 class Container():
-    def __init__(self, name, parent_name, parent_kind, labels, namespace, port, services=[]):
+    def __init__(self, name, parent_name, parent_kind, labels, namespace, port, services=[], is_maybe=False):
         self.identity = parent_name+"-"+name+"-"+str(port)
         self.name = name
         self.parent_name = parent_name
@@ -10,6 +10,7 @@ class Container():
         self.namespace = namespace
         self.port = port
         self.services = services
+        self.is_maybe = is_maybe
 
 class Service():
     def __init__(self, name, namespace, service_type, selector, ports):

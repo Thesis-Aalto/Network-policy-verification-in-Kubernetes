@@ -47,6 +47,11 @@ class ReachabilityCreator():
         for port in policy_rule.ports:
             if port.portNumber == container.port:
                 return True
+            for service in container.services:
+                for servicePort in service.ports:
+                    if port.portNumber == servicePort.target_port:
+                        container.is_maybe = True
+                        return True
         return False
     
     def initialize_matrix(self):
@@ -64,10 +69,10 @@ class ReachabilityCreator():
         for s_container in source_containers:
             for t_container in target_containers:
                 if matrix[s_container.identity][s_container.identity] == 1:
-                    matrix[s_container.identity][t_container.identity] = 1
+                    matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
                 else:
                     self.zero_all_row(s_container, matrix)
-                    matrix[s_container.identity][t_container.identity] = 1
+                    matrix[s_container.identity][t_container.identity] = 2 if t_container.is_mayber else 1
                     matrix[s_container.identity][s_container.identity] = 1
             if len(target_containers) == 0 and matrix[s_container.identity][s_container.identity] == 0:
                 self.zero_all_row(s_container, matrix)
@@ -86,15 +91,3 @@ class ReachabilityCreator():
                     self.reachability_matrix[s_container.identity][t_container.identity] = 1
                 else:
                     self.reachability_matrix[s_container.identity][t_container.identity] = egress_matrix[s_container.identity][t_container.identity] and ingress_matrix[t_container.identity][s_container.identity] 
-
-        
-
-
-
-    
-
-
-
-
-    
-    
