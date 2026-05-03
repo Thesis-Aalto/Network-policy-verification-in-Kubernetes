@@ -49,8 +49,11 @@ class ContainerDiscoverer():
                 pod_name = component["metadata"]["name"]
                 for container in component["spec"]["containers"]:
                     name = container["name"]
-                    for port in container["ports"]:
-                        new_container = Container(name, pod_name, labels, namespace, port["containerPort"])
+                    if "ports" in container:
+                        for port in container["ports"]:
+                            new_container = Container(name, pod_name, labels, namespace, port["containerPort"])
+                    else:
+                        new_container = Container(name, pod_name, labels, namespace, None)
                     self.containers.append(new_container)
             elif component["kind"] == "Deployment":
                 labels = component["spec"]["template"]["metadata"].get("labels") or []
