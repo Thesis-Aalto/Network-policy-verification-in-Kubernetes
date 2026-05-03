@@ -72,7 +72,7 @@ class ReachabilityCreator():
                     matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
                 else:
                     self.zero_all_row(s_container, matrix)
-                    matrix[s_container.identity][t_container.identity] = 2 if t_container.is_mayber else 1
+                    matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
                     matrix[s_container.identity][s_container.identity] = 1
             if len(target_containers) == 0 and matrix[s_container.identity][s_container.identity] == 0:
                 self.zero_all_row(s_container, matrix)
