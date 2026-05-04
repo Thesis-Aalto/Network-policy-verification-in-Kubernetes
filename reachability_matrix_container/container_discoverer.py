@@ -59,7 +59,7 @@ class ContainerDiscoverer():
                     else:
                         new_container = Container(name, pod_name, parent_kind, labels, namespace, "")
                     self.containers.append(new_container)
-            elif parent_kind == "Deployment" or parent_kind == "StatefulSet" :
+            elif parent_kind == "Deployment" or parent_kind == "StatefulSet" or parent_kind == "ReplicaSet" :
                 labels = component["spec"]["template"]["metadata"].get("labels") or []
                 deployment_name = component["metadata"]["name"]
                 for container in component["spec"]["template"]["spec"]["containers"]:
@@ -106,7 +106,7 @@ class ContainerDiscoverer():
         for container in self.containers:
             print("Container")
             print("--------")
-            print(f"Identity: {container.identity}\nContainer Name: {container.name}\nPod Name: {container.parent_name}\nLabels: {container.labels}\nNamespace: {container.namespace}\nPort: {container.port}")
+            print(f"Identity: {container.identity}\nContainer Name: {container.name}\nParent Name: {container.parent_name}\nParent Kind: {container.parent_kind}\nLabels: {container.labels}\nNamespace: {container.namespace}\nPort: {container.port}")
             print()
             print("Service")
             print("--------")
