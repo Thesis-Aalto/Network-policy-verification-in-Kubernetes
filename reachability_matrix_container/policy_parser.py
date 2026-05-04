@@ -39,36 +39,29 @@ class PolicyParser():
             rules = []
             for policy_type in policy["spec"]["policyTypes"]:
                 for rule in policy["spec"][policy_type.lower()]:
-                    target_labels, namespace_labels = self.get_target_labels(policy_type, rule, namespace)                 
+                    all_targets = self.get_target_labels(policy_type, rule, namespace)
                     ports = []
                     for port in rule["ports"]:
                         portNumber = port["port"]
                         protocol = port.get("protocol") or "TCP"
                         new_port = Port(portNumber, protocol)
                         ports.append(new_port)
-                    new_rule = PolicyRule(policy_type, target_labels, namespace_labels, ports)
-                    rules.append(new_rule)
+                    for target_labels, namespace_label in all_targets:
+                        new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
+                        rules.append(new_rule)
             new_network_policy = Policy(name, namespace, source_labels, rules)
             self.network_policies.append(new_network_policy)
 
     def get_target_labels(self, policy_type, rule, namespace):
-        target_labels = {}
-        namespace_label = namespace
-        labels = {}
-        if policy_type == "Ingress":
-            labels = rule["from"]
-        else:
-            labels = rule["to"]
+        results = []
+        labels = rule["from"] if policy_type == "Ingress" else rule["to"]
         for label in labels:
             pod_selector = label.get("podSelector", {}).get("matchLabels", {})
             namespace_selector = label.get("namespaceSelector", {}).get("matchLabels", {})
-            if pod_selector != {}:
-                for key, item in pod_selector.items():
-                    target_labels[key] = item
-            if namespace_selector != {}:
-                for key, item in namespace_selector.items():
-                    namespace_label = item
-        return target_labels, namespace_label
+            target_labels = dict(pod_selector)
+            namespace_label = next(iter(namespace_selector.values()), namespace)
+            results.append((target_labels, namespace_label))
+        return results
 
     def print_network_policy(self):
         for policy in self.network_policies:

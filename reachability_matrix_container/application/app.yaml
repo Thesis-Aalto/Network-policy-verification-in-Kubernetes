@@ -1,36 +1,226 @@
+---
+# ─────────────────────────────────────────────
+# Namespace
+# ─────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+
+---
+# ─────────────────────────────────────────────
+# DEPLOYMENT 1 — frontend
+#   containerPort: 8080 (declared, informational)
+#   actual listening port: 3000 (set via PORT env)
+# ─────────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-app-deployment
+  name: frontend
+  namespace: demo
   labels:
-    app: my-web-app
+    app: frontend
+    tier: presentation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: presentation
+    spec:
+      containers:
+        - name: frontend
+          image: myregistry/frontend:latest
+          ports:
+            - containerPort: 8080     # informational only — app binds to 3000
+          env:
+            - name: PORT
+              value: "3000"           # real listening port
+            - name: API_URL
+              value: "http://api-svc.demo.svc.cluster.local:80"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000              # kubelet probes the real port
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+---
+# Service for frontend
+# targetPort: 3000 matches the real listening port (not containerPort 8080)
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: demo
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000    # routes to the actual port the process binds to
+  type: ClusterIP
+
+---
+# ─────────────────────────────────────────────
+# DEPLOYMENT 2 — api
+#   containerPort: 9090 (declared, informational)
+#   actual listening port: 4000
+# ─────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: demo
+  labels:
+    app: api
+    tier: backend
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: my-web-app
+      app: api
   template:
     metadata:
       labels:
-        app: my-web-app
+        app: api
+        tier: backend
     spec:
       containers:
-      - name: nginx-container
-        image: nginx:1.21
-        ports:
-        - containerPort: 80
+        - name: api
+          image: myregistry/api:latest
+          ports:
+            - containerPort: 9090     # informational — app actually binds to 4000
+          env:
+            - name: PORT
+              value: "4000"           # real listening port
+            - name: DB_HOST
+              value: "postgres-svc.demo.svc.cluster.local"
+            - name: WORKER_URL
+              value: "http://worker-svc.demo.svc.cluster.local:80"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
 
 ---
-
+# Service for api
+# targetPort: 4000 matches the real listening port (not containerPort 9090)
 apiVersion: v1
 kind: Service
 metadata:
-  name: web-app-service
+  name: api-svc
+  namespace: demo
 spec:
   selector:
-    app: my-web-app
+    app: api
   ports:
-    - protocol: TCP
+    - name: http
       port: 80
-      targetPort: 80
+      targetPort: 4000    # routes to the actual port the process binds to
+  type: ClusterIP
+
+---
+# ─────────────────────────────────────────────
+# DEPLOYMENT 3 — worker
+#   containerPort: 7070 (declared, informational)
+#   actual listening port: 5000 (health endpoint only — worker is async)
+# ─────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: demo
+  labels:
+    app: worker
+    tier: async
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+        tier: async
+    spec:
+      containers:
+        - name: worker
+          image: myregistry/worker:latest
+          ports:
+            - containerPort: 7070     # informational — health server binds to 5000
+          env:
+            - name: HEALTH_PORT
+              value: "5000"           # real listening port for health checks
+            - name: QUEUE_URL
+              value: "amqp://rabbitmq-svc.demo.svc.cluster.local:5672"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+---
+# Service for worker (internal health/status endpoint)
+# targetPort: 5000 matches the real listening port (not containerPort 7070)
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-svc
+  namespace: demo
+spec:
+  selector:
+    app: worker
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5000    # routes to the actual port the process binds to
   type: ClusterIP
