@@ -59,8 +59,8 @@ class ContainerDiscoverer():
                     else:
                         new_container = Container(name, pod_name, parent_kind, labels, namespace, "")
                     self.containers.append(new_container)
-            elif parent_kind == "Deployment" or parent_kind == "StatefulSet" or parent_kind == "ReplicaSet" :
-                labels = component["spec"]["template"]["metadata"].get("labels") or []
+            elif parent_kind == "Deployment" or parent_kind == "StatefulSet" or parent_kind == "ReplicaSet" or parent_kind=="Job":
+                labels = component.get("spec", {}).get("template", {}).get("metadata", {}).get("labels") or []
                 deployment_name = component["metadata"]["name"]
                 for container in component["spec"]["template"]["spec"]["containers"]:
                     name = container["name"]
