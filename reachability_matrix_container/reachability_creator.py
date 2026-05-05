@@ -61,7 +61,7 @@ class ReachabilityCreator():
                     if port.portNumber == servicePort.target_port:
                         container.is_maybe = True
                         return True
-        return False
+        return True
     
     def initialize_matrix(self):
         matrix = {}

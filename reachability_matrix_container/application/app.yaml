@@ -1,226 +1,334 @@
----
-# ─────────────────────────────────────────────
-# Namespace
-# ─────────────────────────────────────────────
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: demo
+# Copyright Istio Authors
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
 
----
-# ─────────────────────────────────────────────
-# DEPLOYMENT 1 — frontend
-#   containerPort: 8080 (declared, informational)
-#   actual listening port: 3000 (set via PORT env)
-# ─────────────────────────────────────────────
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: frontend
-  namespace: demo
-  labels:
-    app: frontend
-    tier: presentation
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: frontend
-  template:
-    metadata:
-      labels:
-        app: frontend
-        tier: presentation
-    spec:
-      containers:
-        - name: frontend
-          image: myregistry/frontend:latest
-          ports:
-            - containerPort: 8080     # informational only — app binds to 3000
-          env:
-            - name: PORT
-              value: "3000"           # real listening port
-            - name: API_URL
-              value: "http://api-svc.demo.svc.cluster.local:80"
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 3000              # kubelet probes the real port
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
+##################################################################################################
+# This file defines the services, service accounts, and deployments for the Bookinfo sample.
+#
+# To apply all 4 Bookinfo services, their corresponding service accounts, and deployments:
+#
+#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+#
+# Alternatively, you can deploy any resource separately:
+#
+#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l service=reviews # reviews Service
+#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l account=reviews # reviews ServiceAccount
+#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l app=reviews,version=v3 # reviews-v3 Deployment
+##################################################################################################
 
----
-# Service for frontend
-# targetPort: 3000 matches the real listening port (not containerPort 8080)
+##################################################################################################
+# Details service
+##################################################################################################
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend-svc
-  namespace: demo
+  name: details
+  labels:
+    app: details
+    service: details
 spec:
-  selector:
-    app: frontend
   ports:
-    - name: http
-      port: 80
-      targetPort: 3000    # routes to the actual port the process binds to
-  type: ClusterIP
-
+  - port: 9080
+    name: http
+  selector:
+    app: details
 ---
-# ─────────────────────────────────────────────
-# DEPLOYMENT 2 — api
-#   containerPort: 9090 (declared, informational)
-#   actual listening port: 4000
-# ─────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookinfo-details
+  labels:
+    account: details
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api
-  namespace: demo
+  name: details-v1
   labels:
-    app: api
-    tier: backend
+    app: details
+    version: v1
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
-      app: api
+      app: details
+      version: v1
   template:
     metadata:
       labels:
-        app: api
-        tier: backend
+        app: details
+        version: v1
     spec:
+      serviceAccountName: bookinfo-details
       containers:
-        - name: api
-          image: myregistry/api:latest
-          ports:
-            - containerPort: 9090     # informational — app actually binds to 4000
-          env:
-            - name: PORT
-              value: "4000"           # real listening port
-            - name: DB_HOST
-              value: "postgres-svc.demo.svc.cluster.local"
-            - name: WORKER_URL
-              value: "http://worker-svc.demo.svc.cluster.local:80"
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 4000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 4000
-            initialDelaySeconds: 10
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: "200m"
-              memory: "256Mi"
-            limits:
-              cpu: "1000m"
-              memory: "512Mi"
-
+      - name: details
+        image: docker.io/istio/examples-bookinfo-details-v1:1.20.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9080
 ---
-# Service for api
-# targetPort: 4000 matches the real listening port (not containerPort 9090)
+##################################################################################################
+# Ratings service
+##################################################################################################
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-svc
-  namespace: demo
+  name: ratings
+  labels:
+    app: ratings
+    service: ratings
 spec:
-  selector:
-    app: api
   ports:
-    - name: http
-      port: 80
-      targetPort: 4000    # routes to the actual port the process binds to
-  type: ClusterIP
-
+  - port: 9080
+    name: http
+  selector:
+    app: ratings
 ---
-# ─────────────────────────────────────────────
-# DEPLOYMENT 3 — worker
-#   containerPort: 7070 (declared, informational)
-#   actual listening port: 5000 (health endpoint only — worker is async)
-# ─────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookinfo-ratings
+  labels:
+    account: ratings
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: worker
-  namespace: demo
+  name: ratings-v1
   labels:
-    app: worker
-    tier: async
+    app: ratings
+    version: v1
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: worker
+      app: ratings
+      version: v1
   template:
     metadata:
       labels:
-        app: worker
-        tier: async
+        app: ratings
+        version: v1
     spec:
+      serviceAccountName: bookinfo-ratings
       containers:
-        - name: worker
-          image: myregistry/worker:latest
-          ports:
-            - containerPort: 7070     # informational — health server binds to 5000
-          env:
-            - name: HEALTH_PORT
-              value: "5000"           # real listening port for health checks
-            - name: QUEUE_URL
-              value: "amqp://rabbitmq-svc.demo.svc.cluster.local:5672"
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 5000
-            initialDelaySeconds: 10
-            periodSeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 5000
-            initialDelaySeconds: 15
-            periodSeconds: 30
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
-
+      - name: ratings
+        image: docker.io/istio/examples-bookinfo-ratings-v1:1.20.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9080
 ---
-# Service for worker (internal health/status endpoint)
-# targetPort: 5000 matches the real listening port (not containerPort 7070)
+##################################################################################################
+# Reviews service
+##################################################################################################
 apiVersion: v1
 kind: Service
 metadata:
-  name: worker-svc
-  namespace: demo
+  name: reviews
+  labels:
+    app: reviews
+    service: reviews
 spec:
-  selector:
-    app: worker
   ports:
-    - name: http
-      port: 80
-      targetPort: 5000    # routes to the actual port the process binds to
-  type: ClusterIP
+  - port: 9080
+    name: http
+  selector:
+    app: reviews
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookinfo-reviews
+  labels:
+    account: reviews
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reviews-v1
+  labels:
+    app: reviews
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reviews
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: reviews
+        version: v1
+    spec:
+      serviceAccountName: bookinfo-reviews
+      containers:
+      - name: reviews
+        image: docker.io/istio/examples-bookinfo-reviews-v1:1.20.3
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: LOG_DIR
+          value: "/tmp/logs"
+        ports:
+        - containerPort: 9080
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: wlp-output
+          mountPath: /opt/ibm/wlp/output
+      volumes:
+      - name: wlp-output
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reviews-v2
+  labels:
+    app: reviews
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reviews
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: reviews
+        version: v2
+    spec:
+      serviceAccountName: bookinfo-reviews
+      containers:
+      - name: reviews
+        image: docker.io/istio/examples-bookinfo-reviews-v2:1.20.3
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: LOG_DIR
+          value: "/tmp/logs"
+        ports:
+        - containerPort: 9080
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: wlp-output
+          mountPath: /opt/ibm/wlp/output
+      volumes:
+      - name: wlp-output
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reviews-v3
+  labels:
+    app: reviews
+    version: v3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reviews
+      version: v3
+  template:
+    metadata:
+      labels:
+        app: reviews
+        version: v3
+    spec:
+      serviceAccountName: bookinfo-reviews
+      containers:
+      - name: reviews
+        image: docker.io/istio/examples-bookinfo-reviews-v3:1.20.3
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: LOG_DIR
+          value: "/tmp/logs"
+        ports:
+        - containerPort: 9080
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: wlp-output
+          mountPath: /opt/ibm/wlp/output
+      volumes:
+      - name: wlp-output
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+---
+##################################################################################################
+# Productpage services
+##################################################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: productpage
+  labels:
+    app: productpage
+    service: productpage
+spec:
+  ports:
+  - port: 9080
+    name: http
+  selector:
+    app: productpage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bookinfo-productpage
+  labels:
+    account: productpage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: productpage-v1
+  labels:
+    app: productpage
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: productpage
+      version: v1
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9080"
+        prometheus.io/path: "/metrics"
+      labels:
+        app: productpage
+        version: v1
+    spec:
+      serviceAccountName: bookinfo-productpage
+      containers:
+      - name: productpage
+        image: docker.io/istio/examples-bookinfo-productpage-v1:1.20.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9080
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
