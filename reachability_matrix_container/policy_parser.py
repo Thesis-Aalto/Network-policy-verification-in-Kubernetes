@@ -2,11 +2,12 @@ import os
 import yaml
 
 class Policy():
-    def __init__(self, name, namespace, source_labels, rules):
+    def __init__(self, name, namespace, source_labels, rules, policy_types):
         self.name = name
         self.namespace = namespace
         self.source_labels = source_labels
         self.rules = rules
+        self.policy_types = policy_types
 
 class PolicyRule():
     def __init__(self, policy_type, target_labels, namespace_label, ports):
@@ -37,11 +38,13 @@ class PolicyParser():
             namespace = policy["metadata"].get("namespace") or "default"
             source_labels = policy["spec"]["podSelector"].get("matchLabels") or {}
             rules = []
+            policy_types = []
             for policy_type in policy["spec"]["policyTypes"]:
-                for rule in policy["spec"][policy_type.lower()]:
+                policy_types.append(policy_type)
+                for rule in policy["spec"].get(policy_type.lower()) or []:
                     all_targets = self.get_target_labels(policy_type, rule, namespace)
                     ports = []
-                    for port in rule["ports"]:
+                    for port in rule.get("ports") or []:
                         portNumber = port["port"]
                         protocol = port.get("protocol") or "TCP"
                         new_port = Port(portNumber, protocol)
@@ -49,11 +52,16 @@ class PolicyParser():
                     for target_labels, namespace_label in all_targets:
                         new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
                         rules.append(new_rule)
-            new_network_policy = Policy(name, namespace, source_labels, rules)
+                    if rule == {}:
+                        new_rule = PolicyRule(policy_type, {}, {}, [])
+                        rules.append(new_rule)
+            new_network_policy = Policy(name, namespace, source_labels, rules, policy_types)
             self.network_policies.append(new_network_policy)
 
     def get_target_labels(self, policy_type, rule, namespace):
         results = []
+        if rule == {}:
+            return results
         labels = rule["from"] if policy_type == "Ingress" else rule["to"]
         for label in labels:
             pod_selector = label.get("podSelector", {}).get("matchLabels", {})

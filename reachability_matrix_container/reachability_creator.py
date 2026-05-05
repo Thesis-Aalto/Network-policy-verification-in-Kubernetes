@@ -12,8 +12,14 @@ class ReachabilityCreator():
 
         for policy in self.network_policies:
             source_containers = self.find_selected_containers(policy)
+            if len(policy.rules) == 0:
+                target_containers = []
+                for policy_type in policy.policy_types:
+                    if policy_type == "Ingress":
+                        self.fill_matrix(source_containers, target_containers, ingress_matrix)
+                    else:
+                        self.fill_matrix(source_containers, target_containers, egress_matrix)
             for rule in policy.rules:
-                print(policy.name)
                 target_containers = self.find_selected_containers(rule)
                 if rule.policy_type == "Ingress":
                     self.fill_matrix(source_containers, target_containers, ingress_matrix)
@@ -31,6 +37,8 @@ class ReachabilityCreator():
         else:
             labels_dict = policy_component.target_labels
             namespace = policy_component.namespace_label
+        if labels_dict == {}:
+            return self.containers  
         for container in self.containers:
             if type(policy_component) == Policy and policy_component.namespace != container.namespace:
                 continue
