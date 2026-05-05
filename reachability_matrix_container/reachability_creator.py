@@ -27,6 +27,7 @@ class ReachabilityCreator():
                     self.fill_matrix(source_containers, target_containers, egress_matrix)
         self.intersect_egress_and_igress(egress_matrix, ingress_matrix)
         print(self.reachability_matrix)
+        return self.reachability_matrix
                     
     def find_selected_containers(self, policy_component):
         selected_containers = []
