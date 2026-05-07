@@ -9,6 +9,8 @@ class ReachabilityCreator():
     def create_reachability_matrix(self):
         egress_matrix = self.initialize_matrix()
         ingress_matrix = self.initialize_matrix()
+        is_policy_applied={}
+        self.fill_is_policy_applied(is_policy_applied)
 
         for policy in self.network_policies:
             source_containers = self.find_selected_containers(policy)
@@ -16,15 +18,15 @@ class ReachabilityCreator():
                 target_containers = []
                 for policy_type in policy.policy_types:
                     if policy_type == "Ingress":
-                        self.fill_matrix(source_containers, target_containers, ingress_matrix)
+                        self.fill_matrix(source_containers, target_containers, ingress_matrix, "Ingress", is_policy_applied)
                     else:
-                        self.fill_matrix(source_containers, target_containers, egress_matrix)
+                        self.fill_matrix(source_containers, target_containers, egress_matrix, "Egress", is_policy_applied)
             for rule in policy.rules:
                 target_containers = self.find_selected_containers(rule)
                 if rule.policy_type == "Ingress":
-                    self.fill_matrix(source_containers, target_containers, ingress_matrix)
+                    self.fill_matrix(source_containers, target_containers, ingress_matrix, "Ingress", is_policy_applied)
                 else:
-                    self.fill_matrix(source_containers, target_containers, egress_matrix)
+                    self.fill_matrix(source_containers, target_containers, egress_matrix, "Egress", is_policy_applied)
         self.intersect_egress_and_igress(egress_matrix, ingress_matrix)
         print(self.reachability_matrix)
         return self.reachability_matrix
@@ -75,18 +77,26 @@ class ReachabilityCreator():
                     matrix[s_container.identity][t_container.identity] = 1
         return matrix
     
-    def fill_matrix(self, source_containers, target_containers, matrix):  
+    def fill_matrix(self, source_containers, target_containers, matrix, policy_type, is_policy_applied):  
         for s_container in source_containers:
             for t_container in target_containers:
-                if matrix[s_container.identity][s_container.identity] == 1:
+                if is_policy_applied[s_container.identity][policy_type] == 1:
                     matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
                 else:
                     self.zero_all_row(s_container, matrix)
                     matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
-                    matrix[s_container.identity][s_container.identity] = 1
-            if len(target_containers) == 0 and matrix[s_container.identity][s_container.identity] == 0:
+                    is_policy_applied[s_container.identity][policy_type] = 1
+            if len(target_containers) == 0 and is_policy_applied[s_container.identity][policy_type] == 0:
                 self.zero_all_row(s_container, matrix)
-                matrix[s_container.identity][s_container.identity] = 1
+                is_policy_applied[s_container.identity][policy_type] = 1
+
+
+    def fill_is_policy_applied(self, policy_matrix):
+        for container in self.containers:
+            policy_matrix[container.identity] = {}
+            for policy_type in ["Ingress", "Egress"]:
+                policy_matrix[container.identity][policy_type] = 0
+        
     
     def zero_all_row(self, source_container, matrix):
         for container in self.containers:
@@ -97,7 +107,4 @@ class ReachabilityCreator():
         for s_container in self.containers:
             self.reachability_matrix[s_container.identity] = {}
             for t_container in self.containers:
-                if s_container.identity == t_container.identity:
-                    self.reachability_matrix[s_container.identity][t_container.identity] = 1
-                else:
-                    self.reachability_matrix[s_container.identity][t_container.identity] = egress_matrix[s_container.identity][t_container.identity] and ingress_matrix[t_container.identity][s_container.identity] 
+                self.reachability_matrix[s_container.identity][t_container.identity] = egress_matrix[s_container.identity][t_container.identity] and ingress_matrix[t_container.identity][s_container.identity] 
