@@ -3,9 +3,17 @@ import time
 import json
 
 class KubesondeTest():
-    def __init__(self, expected_matrix):
+    def __init__(self, expected_matrix, containers):
         self.expected_matrix = expected_matrix
-        self.prepare_test()
+        self.containers = containers
+        self.real_matrix = {}
+        self.fill_real_matrix()
+
+    def fill_real_matrix(self):
+        for source in self.containers:
+            self.real_matrix[source.identity] = {}
+            for destination in self.containers:
+                self.real_matrix[source.identity][destination.identity] = 1
 
     def prepare_test(self):
         subprocess.run(["minikube", "delete"])
@@ -43,6 +51,35 @@ class KubesondeTest():
         finally:
             pf_process.terminate()
 
-if __name__ == "__main__":
-    kubesonde_test = KubesondeTest({})
+    def create_kubesonde_reachability_matrix(self):
+        with open("./kubesonde/output.json", "r") as file:
+            output = json.load(file)
+            for item in output.get("items", "[]"):
+                source = item.get("source", {})
+                source_container = self.find_container_by_json(source)
+                destination = item.get("destination", {})
+                if destination["type"] == "Service":
+                    service_name = destination["name"]
+                    destination_container = self.find_container_by_service(service_name)
+                if item.get("resultingAction") == "Allow":
+                    self.real_matrix[source_container.identity][destination_container.identity] = 1
+                else:
+                    self.real_matrix[source_container.identity][destination_container.identity] = 0
 
+
+    def find_container_by_service(self, service_name):
+        for container in self.containers:
+            for service in container.services:
+                if service.name == service_name:
+                    return container
+        return None
+    
+    def find_container_by_json(self, source):
+        for container in self.containers:
+            if source["name"].startswith(container.name) and source["namespace"] == container.namespace:
+                return container
+
+
+if __name__ == "__main__":
+    kubesonde_test = KubesondeTest({}, {})
+    kubesonde_test.prepare_test()
