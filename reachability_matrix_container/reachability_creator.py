@@ -13,9 +13,6 @@ class ReachabilityCreator():
         self.fill_is_policy_applied(is_policy_applied)
 
         for policy in self.network_policies:
-            print(policy.name)
-            print(ingress_matrix)
-            print()
             source_containers = self.find_selected_containers(policy)
             if len(policy.rules) == 0:
                 target_containers = []
@@ -30,11 +27,7 @@ class ReachabilityCreator():
                     self.fill_matrix(source_containers, target_containers, ingress_matrix, "Ingress", is_policy_applied)
                 else:
                     self.fill_matrix(source_containers, target_containers, egress_matrix, "Egress", is_policy_applied)
-            print(ingress_matrix)
-            print()
-            print()
         self.intersect_egress_and_igress(egress_matrix, ingress_matrix)
-        print(self.reachability_matrix)
         return self.reachability_matrix
                     
     def find_selected_containers(self, policy_component):
