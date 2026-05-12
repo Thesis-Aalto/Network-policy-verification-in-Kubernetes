@@ -13,6 +13,9 @@ class ReachabilityCreator():
         self.fill_is_policy_applied(is_policy_applied)
 
         for policy in self.network_policies:
+            print(policy.name)
+            print(ingress_matrix)
+            print()
             source_containers = self.find_selected_containers(policy)
             if len(policy.rules) == 0:
                 target_containers = []
@@ -27,6 +30,9 @@ class ReachabilityCreator():
                     self.fill_matrix(source_containers, target_containers, ingress_matrix, "Ingress", is_policy_applied)
                 else:
                     self.fill_matrix(source_containers, target_containers, egress_matrix, "Egress", is_policy_applied)
+            print(ingress_matrix)
+            print()
+            print()
         self.intersect_egress_and_igress(egress_matrix, ingress_matrix)
         print(self.reachability_matrix)
         return self.reachability_matrix
@@ -64,17 +70,14 @@ class ReachabilityCreator():
                     if port.portNumber == servicePort.target_port:
                         container.is_maybe = True
                         return True
-        return True
+        return False
     
     def initialize_matrix(self):
         matrix = {}
         for s_container in self.containers:
             matrix[s_container.identity] = {}
             for t_container in self.containers:
-                if s_container.identity == t_container.identity:
-                    matrix[s_container.identity][s_container.identity] = 0
-                else:
-                    matrix[s_container.identity][t_container.identity] = 1
+                matrix[s_container.identity][t_container.identity] = 1
         return matrix
     
     def fill_matrix(self, source_containers, target_containers, matrix, policy_type, is_policy_applied):  
@@ -86,6 +89,7 @@ class ReachabilityCreator():
                     self.zero_all_row(s_container, matrix)
                     matrix[s_container.identity][t_container.identity] = 2 if t_container.is_maybe else 1
                     is_policy_applied[s_container.identity][policy_type] = 1
+                t_container.is_maybe = False
             if len(target_containers) == 0 and is_policy_applied[s_container.identity][policy_type] == 0:
                 self.zero_all_row(s_container, matrix)
                 is_policy_applied[s_container.identity][policy_type] = 1
@@ -100,8 +104,7 @@ class ReachabilityCreator():
     
     def zero_all_row(self, source_container, matrix):
         for container in self.containers:
-            if container.identity != source_container.identity:
-                matrix[source_container.identity][container.identity] = 0
+            matrix[source_container.identity][container.identity] = 0
 
     def intersect_egress_and_igress(self, egress_matrix, ingress_matrix):
         for s_container in self.containers:
