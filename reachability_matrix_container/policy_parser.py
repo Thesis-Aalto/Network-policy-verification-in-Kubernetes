@@ -56,6 +56,11 @@ class PolicyParser():
                         if rule == {}:
                             new_rule = PolicyRule(policy_type, {}, {}, [])
                             rules.append(new_rule)
+                        #Case when there are no selectors and only ports
+                        elif len(all_targets) == 0:
+                            new_rule = PolicyRule(policy_type, {}, {}, ports)
+                            rules.append(new_rule)
+                            
             new_network_policy = Policy(name, namespace, source_labels, rules, policy_types)
             self.network_policies.append(new_network_policy)
 
@@ -63,7 +68,7 @@ class PolicyParser():
         results = []
         if rule == {}:
             return results
-        labels = rule["from"] if policy_type == "Ingress" else rule["to"]
+        labels = rule.get("from", []) if policy_type == "Ingress" else rule.get("to", [])
         for label in labels:
             pod_selector = label.get("podSelector", {}).get("matchLabels", {})
             namespace_selector = label.get("namespaceSelector", {}).get("matchLabels", {})

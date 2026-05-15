@@ -42,7 +42,15 @@ class ReachabilityCreator():
             labels_dict = policy_component.target_labels
             namespace = policy_component.namespace_label
         if labels_dict == {}:
-            return self.containers  
+            if type(policy_component) == PolicyRule and len(policy_component.ports) != 0:
+                selected_containers = []
+                for container in self.containers:
+                    if self.is_match_container_policy(container, policy_component):
+                        selected_containers.append(container) 
+
+                return selected_containers
+            else:
+                return self.containers
         for container in self.containers:
             if type(policy_component) == Policy and policy_component.namespace != container.namespace:
                 continue
@@ -57,7 +65,7 @@ class ReachabilityCreator():
         return selected_containers
     
     def is_match_container_policy(self, container, policy_rule):
-        if len(policy_rule.ports):
+        if len(policy_rule.ports) == 0:
             return True
         for port in policy_rule.ports:
             if port.portNumber == container.port:
