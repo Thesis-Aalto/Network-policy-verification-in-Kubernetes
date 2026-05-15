@@ -39,22 +39,23 @@ class PolicyParser():
             source_labels = policy["spec"]["podSelector"].get("matchLabels") or {}
             rules = []
             policy_types = []
-            for policy_type in policy["spec"]["policyTypes"]:
-                policy_types.append(policy_type)
-                for rule in policy["spec"].get(policy_type.lower()) or []:
-                    all_targets = self.get_target_labels(policy_type, rule, namespace)
-                    ports = []
-                    for port in rule.get("ports") or []:
-                        portNumber = port["port"]
-                        protocol = port.get("protocol") or "TCP"
-                        new_port = Port(portNumber, protocol)
-                        ports.append(new_port)
-                    for target_labels, namespace_label in all_targets:
-                        new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
-                        rules.append(new_rule)
-                    if rule == {}:
-                        new_rule = PolicyRule(policy_type, {}, {}, [])
-                        rules.append(new_rule)
+            for policy_type in ["Ingress", "Egress"]:
+                if policy_type.lower() in policy["spec"]:
+                    policy_types.append(policy_type)
+                    for rule in policy["spec"].get(policy_type.lower()) or []:
+                        all_targets = self.get_target_labels(policy_type, rule, namespace)
+                        ports = []
+                        for port in rule.get("ports") or []:
+                            portNumber = port["port"]
+                            protocol = port.get("protocol") or "TCP"
+                            new_port = Port(portNumber, protocol)
+                            ports.append(new_port)
+                        for target_labels, namespace_label in all_targets:
+                            new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
+                            rules.append(new_rule)
+                        if rule == {}:
+                            new_rule = PolicyRule(policy_type, {}, {}, [])
+                            rules.append(new_rule)
             new_network_policy = Policy(name, namespace, source_labels, rules, policy_types)
             self.network_policies.append(new_network_policy)
 

@@ -1,4 +1,6 @@
-from policy_parser import Policy, PolicyRule
+from policy_parser import Policy, PolicyRule, PolicyParser
+from container_discoverer import ContainerDiscoverer
+
 
 class ReachabilityCreator():
     def __init__(self, containers, network_policies):
@@ -55,6 +57,8 @@ class ReachabilityCreator():
         return selected_containers
     
     def is_match_container_policy(self, container, policy_rule):
+        if len(policy_rule.ports):
+            return True
         for port in policy_rule.ports:
             if port.portNumber == container.port:
                 return True
@@ -104,3 +108,14 @@ class ReachabilityCreator():
             self.reachability_matrix[s_container.identity] = {}
             for t_container in self.containers:
                 self.reachability_matrix[s_container.identity][t_container.identity] = egress_matrix[s_container.identity][t_container.identity] and ingress_matrix[t_container.identity][s_container.identity] 
+
+
+if __name__ == "__main__":
+    container_discoverer = ContainerDiscoverer("./application/app.yaml")
+    policy_parser = PolicyParser("./network_policies")
+
+    containers = container_discoverer.containers
+    reachability_creator = ReachabilityCreator(containers, policy_parser.network_policies)
+
+    reachability_matrix = reachability_creator.create_reachability_matrix()
+    print(reachability_matrix)
