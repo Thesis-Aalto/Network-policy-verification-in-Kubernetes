@@ -1,4 +1,6 @@
 import yaml
+import os
+import sys
 
 class Container():
     def __init__(self, name, parent_name, parent_kind, labels, namespace, port, services=[], is_maybe=False):
@@ -39,8 +41,9 @@ class ContainerDiscoverer():
         self.match_services_and_containers()
     
     def parse_yaml(self, yaml_path):
-        with open(yaml_path, "r") as file:
-            parsed_yaml = list(yaml.safe_load_all(file))
+        for file in os.listdir(yaml_path):
+            with open(yaml_path+"/"+file, "r") as f:
+                parsed_yaml = list(yaml.safe_load_all(f))
         return parsed_yaml
 
     def find_containers(self, parsed_yaml):
@@ -121,5 +124,9 @@ class ContainerDiscoverer():
 
 
 if __name__ == "__main__":
-    a = ContainerDiscoverer("./application/app.yaml")
+    application_folder_path = "./application/aks-store-demo"
+    if (len(sys.argv)) == 2:
+        application_folder_path = sys.argv[1]
+    
+    a = ContainerDiscoverer(application_folder_path)
     a.print_containers()

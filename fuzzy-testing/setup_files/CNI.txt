@@ -1,5 +1,0 @@
-Antrea
-Calico
-Canal
-Cilium
-Kube-Router

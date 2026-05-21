@@ -1,5 +1,6 @@
 import os
 import yaml
+import sys
 
 CILIUM_KINDS = frozenset({"CiliumNetworkPolicy", "CiliumClusterwideNetworkPolicy"})
 SUPPORTED_POLICY_KINDS = CILIUM_KINDS | {"NetworkPolicy"}
@@ -35,9 +36,9 @@ class PolicyParser():
 
     def parse_policies(self, policy_path):
         for file in os.listdir(policy_path):
-            with open(policy_path+"/"+file, "r") as file:
-                parsed_yaml = list(yaml.safe_load_all(file))
-                network_policy = self.get_network_policy(parsed_yaml)
+            with open(policy_path+"/"+file, "r") as f:
+                parsed_yaml = list(yaml.safe_load_all(f))
+                self.get_network_policy(parsed_yaml)
 
     def get_network_policy(self, parsed_yaml):
         for policy in parsed_yaml:
@@ -50,7 +51,7 @@ class PolicyParser():
             if is_cilium:
                 raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
                 if policy["kind"] == "CiliumClusterwideNetworkPolicy":
-                    source_labels, namespace = self._split_cilium_labels(raw_source_labels, namespace)
+                    source_labels, namespace = self.split_cilium_labels(raw_source_labels, namespace)
                 else:
                     source_labels = raw_source_labels
             else:
@@ -58,11 +59,11 @@ class PolicyParser():
             rules = []
             policy_types = []
             for policy_type in ["Ingress", "Egress"]:
-                if policy_type.lower() in spec:
+                if policy_type in spec["policyTypes"]:
                     policy_types.append(policy_type)
                     for rule in spec.get(policy_type.lower()) or []:
                         all_targets = self.get_target_labels(policy_type, rule, namespace, is_cilium)
-                        ports = self._get_rule_ports(rule, is_cilium)
+                        ports = self.get_rule_ports(rule, is_cilium)
                         for target_labels, namespace_label in all_targets:
                             new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
                             rules.append(new_rule)
@@ -84,7 +85,7 @@ class PolicyParser():
         if is_cilium:
             labels = rule.get("fromEndpoints", []) if policy_type == "Ingress" else rule.get("toEndpoints", [])
             for endpoint in labels:
-                target_labels, namespace_label = self._split_cilium_labels(
+                target_labels, namespace_label = self.split_cilium_labels(
                     endpoint.get("matchLabels", {}), namespace
                 )
                 results.append((target_labels, namespace_label))
@@ -98,7 +99,7 @@ class PolicyParser():
             results.append((target_labels, namespace_label))
         return results
 
-    def _split_cilium_labels(self, match_labels, default_namespace):
+    def split_cilium_labels(self, match_labels, default_namespace):
         labels = dict(match_labels)
         namespace_label = default_namespace
         for key in CILIUM_NAMESPACE_LABEL_KEYS:
@@ -106,7 +107,7 @@ class PolicyParser():
                 namespace_label = labels.pop(key)
         return labels, namespace_label
 
-    def _get_rule_ports(self, rule, is_cilium):
+    def get_rule_ports(self, rule, is_cilium):
         ports = []
         if is_cilium:
             port_entries = []
@@ -136,7 +137,10 @@ class PolicyParser():
 
 
 if __name__ == "__main__":
-    parser = PolicyParser("./network_policies")
+    application_folder_path = "./network_policies/example"
+    if len(sys.argv) == 2:
+        application_folder_path = sys.argv[1]
+    parser = PolicyParser(application_folder_path)
     parser.print_network_policy()
 
     

@@ -1,4 +1,2 @@
-fuzzy-testing/network_policies/
-reachability_matrix_container/network_policies/
 __pycache__/
-*.csv
+myvenv/
