@@ -125,7 +125,7 @@ class PolicyParser():
 
     def print_network_policy(self):
         for policy in self.network_policies:
-            print(f"Policy Name: {policy.name}\nPolicy Namespace: {policy.namespace}\nSource Labels: {policy.source_labels}")
+            print(f"Policy Name: {policy.name}\nPolicy Namespace: {policy.namespace}\nSource Labels: {policy.source_labels}\nPolicy Types: {policy.policy_types}")
             print("Rules:")
             for rule in policy.rules:
                 print(f"\tPolicy Type: {rule.policy_type}\n\tTarget Labels:{rule.target_labels}")

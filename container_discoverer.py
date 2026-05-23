@@ -2,16 +2,23 @@ import yaml
 import os
 import sys
 
-class Container():
-    def __init__(self, name, parent_name, parent_kind, labels, namespace, port, services=[], is_maybe=False):
-        self.identity = parent_name+"-"+name+"-"+str(port)
+
+class Workload():
+    def __init__(self, name, kind, labels, namespace, containers):
         self.name = name
-        self.parent_name = parent_name
-        self.parent_kind = parent_kind
+        self.kind = kind
         self.labels = labels
         self.namespace = namespace
+        self.containers = containers
+        self.services = []
+        
+
+class Container():
+    def __init__(self, identity, name, port, services=[], is_maybe=False):
+        self.identity = identity
+        self.name = name
         self.port = port
-        self.services = services
+        self.service = services
         self.is_maybe = is_maybe
 
 class Service():
@@ -33,12 +40,12 @@ class ServicePort():
 
 class ContainerDiscoverer():
     def __init__(self, yaml_path):
-        self.containers = []
+        self.workloads = []
         self.services = []
 
         parsed_yaml = self.parse_yaml(yaml_path)
-        self.find_containers(parsed_yaml)
-        self.match_services_and_containers()
+        self.find_workloads(parsed_yaml)
+        self.match_services_and_workloads()
     
     def parse_yaml(self, yaml_path):
         for file in os.listdir(yaml_path):
@@ -46,34 +53,44 @@ class ContainerDiscoverer():
                 parsed_yaml = list(yaml.safe_load_all(f))
         return parsed_yaml
 
-    def find_containers(self, parsed_yaml):
+    def find_workloads(self, parsed_yaml):
         for component in parsed_yaml:
             namespace = component["metadata"].get("namespace") or "default"
             parent_kind = component["kind"]
             if parent_kind == "Pod":
                 labels = component["metadata"].get("labels") or {}
                 pod_name = component["metadata"]["name"]
+                containers = []
                 for container in component["spec"]["containers"]:
                     name = container["name"]
                     ports = container.get("ports") or []
                     if len(ports) > 0:
                         for port in container["ports"]:
-                            new_container = Container(name, pod_name, parent_kind, labels, namespace, port["containerPort"])
+                            identity = pod_name+"-"+name+"-"+str(port["containerPort"])
+                            new_container = Container(identity, name, port["containerPort"])
                     else:
-                        new_container = Container(name, pod_name, parent_kind, labels, namespace, "")
-                    self.containers.append(new_container)
+                        identity = pod_name+"-"+name
+                        new_container = Container(identity, name, new_workload,  "")
+                    containers.append(new_container)
+                new_workload = Workload(pod_name, parent_kind, labels, namespace, containers)
+                self.workloads.append(new_workload)
             elif parent_kind == "Deployment" or parent_kind == "StatefulSet" or parent_kind == "ReplicaSet" or parent_kind=="Job":
                 labels = component.get("spec", {}).get("template", {}).get("metadata", {}).get("labels") or []
                 deployment_name = component["metadata"]["name"]
+                containers = []
                 for container in component["spec"]["template"]["spec"]["containers"]:
                     name = container["name"]
                     ports = container.get("ports") or []
                     if len(ports) > 0:
                         for port in container.get("ports"):
-                            new_container = Container(name, deployment_name, parent_kind, labels, namespace, port["containerPort"])
+                            identity = deployment_name+"-"+name+"-"+str(port["containerPort"])
+                            new_container = Container(identity, name, port["containerPort"])
                     else:
-                        new_container = Container(name, deployment_name, parent_kind, labels, namespace, "")
-                    self.containers.append(new_container)
+                        identity = deployment_name+"-"+name
+                        new_container = Container(identity, name, "")
+                    containers.append(new_container)
+                new_workload = Workload(deployment_name, parent_kind, labels, namespace, containers)
+                self.workloads.append(new_workload)
             elif parent_kind == "Service":
                 new_service = self.get_service(component)
                 self.services.append(new_service)
@@ -95,32 +112,53 @@ class ContainerDiscoverer():
         new_service = Service(name, namespace, service_type, selector, ports)
         return new_service
 
-    def match_services_and_containers(self):
+    def match_services_and_workloads(self):
         for service in self.services:
-            for container in self.containers:
+            for workload in self.workloads:
                 is_add = True
                 for key, value in service.selector.items():
-                    if key not in container.labels or container.labels[key] != value:
+                    if key not in workload.labels or workload.labels[key] != value:
                         is_add = False
                 if is_add:
-                    container.services.append(service)
+                    workload.services.append(service)
 
-    def print_containers(self):
-        for container in self.containers:
-            print("Container")
-            print("--------")
-            print(f"Identity: {container.identity}\nContainer Name: {container.name}\nParent Name: {container.parent_name}\nParent Kind: {container.parent_kind}\nLabels: {container.labels}\nNamespace: {container.namespace}\nPort: {container.port}")
+    def print_workloads(self):
+        for workload in self.workloads:
+            print(f"=== WORKLOAD: {workload.name} ===")
+            print(f"  Kind:      {workload.kind}")
+            print(f"  Namespace: {workload.namespace}")
+            print(f"  Labels:    {workload.labels}")
             print()
-            print("Service")
-            print("--------")
-            for service in container.services:
-                print(f"Name: {service.name}\nNamespace: {service.namespace}\nService Type: {service.service_type}\nSelector: {service.selector}")
-                print("Ports")
-                print("---")
-                for port in service.ports:
-                    print(f"Name: {port.name}\nProtocol: {port.protocol}\nPort: {port.port}\nTarget Port: {port.target_port}\nNode Port: {port.node_port}")
-            print()
-            print()
+
+            print("  Services:")
+            if not workload.services:
+                print("    (None)")
+            for service in workload.services:
+                print(f"    - Name:         {service.name}")
+                print(f"      Namespace:    {service.namespace}")
+                print(f"      Type:         {service.service_type}")
+                print(f"      Selector:     {service.selector}")
+                
+                # Nested Ports
+                if service.ports:
+                    print("      Ports:")
+                    for port in service.ports:
+                        port_info = f"Port: {port.port} -> {port.target_port}/{port.protocol}"
+                        if port.node_port:
+                            port_info += f" (NodePort: {port.node_port})"
+                        if port.name:
+                            port_info = f"[{port.name}] " + port_info
+                        print(f"        * {port_info}")
+                print()
+
+            print("  Containers:")
+            if not workload.containers:
+                print("    (None)")
+            for container in workload.containers:
+                print(f"    - Name: {container.name}")
+                print(f"      Port: {container.port}")
+                
+            print("\n" + "="*40 + "\n")
 
 
 if __name__ == "__main__":
@@ -129,4 +167,4 @@ if __name__ == "__main__":
         application_folder_path = sys.argv[1]
     
     a = ContainerDiscoverer(application_folder_path)
-    a.print_containers()
+    a.print_workloads()
