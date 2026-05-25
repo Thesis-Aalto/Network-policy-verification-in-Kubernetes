@@ -9,7 +9,8 @@ import pandas as pd
 ###TODO: Create a scenario tester X
 ###TODO: Create NetworkPolicyRecommender to recommend network policies
 class ReachabilityCreator():
-    def __init__(self, workloads, network_policies):
+    def __init__(self, services, workloads, network_policies):
+        self.services = services
         self.workloads = workloads
         self.network_policies = network_policies
 
@@ -42,6 +43,13 @@ class ReachabilityCreator():
                                 for container in workload.containers:
                                     if self.is_match_ports(container, rule, workload.services):
                                         target_containers.append(container)
+
+                for service in services:
+                    if service.namespace == rule.namespace_label:
+                        for key, value in rule.target_labels.items():
+                            if key in service.selector and workload.selector[key] == value:
+                                target_containers.append(service)
+
                 self.fill_matrix(source_workloads, target_containers, self.ingress_matrix, rule.policy_type)
                     
             else:
@@ -57,6 +65,12 @@ class ReachabilityCreator():
                                 for container in workload.containers:
                                     if self.is_match_ports(container, rule, workload.services):
                                         target_containers.append(container)
+
+                for service in services:
+                    if service.namespace == rule.namespace_label:
+                        for key, value in rule.target_labels.items():
+                            if key in service.selector and service.selector[key] == value:
+                                target_containers.append(service)
                 self.fill_matrix(source_workloads, target_containers, self.egress_matrix, rule.policy_type)
         ##Exceptional Case: Deny All
         if len(policy.rules) == 0:
@@ -73,6 +87,10 @@ class ReachabilityCreator():
                         if workload.namespace == policy.namespace:
                             for t_container in workload.containers:
                                 target_containers.append(t_container)
+                    for service in self.services:
+                        if service.namespace == policy.namespace:
+                            target_containers.append(service)
+
                     self.fill_matrix(source_workloads, target_containers, self.ingress_matrix, policy_type)
 
     def is_match_ports(self, container, policy_rule, services):
@@ -95,6 +113,8 @@ class ReachabilityCreator():
             for t_workload in self.workloads:
                 for t_container in t_workload.containers:
                     matrix[s_workload.name][t_container.identity] = 1
+            for service in self.services:
+                matrix[s_workload.name][service.service_type+"-"+service.name] = 1
         return matrix
     
     #TODO: Discuss about maybe situation
@@ -135,6 +155,8 @@ class ReachabilityCreator():
         for workload in self.workloads:
             for container in workload.containers:
                 matrix[source_workload.name][container.identity] = 0
+        for service in self.services:
+            matrix[source_workload.name][service.identity] = 0
 
     def zero_all_col(self, container, matrix):
         for workload in self.workloads:
@@ -191,7 +213,8 @@ if __name__ == "__main__":
     policy_parser = PolicyParser(policy_folder_path)
 
     workloads = container_discoverer.workloads
-    reachability_creator = ReachabilityCreator(workloads, policy_parser.network_policies)
+    services = container_discoverer.services
+    reachability_creator = ReachabilityCreator(services, workloads, policy_parser.network_policies)
 
     reachability_matrix = reachability_creator.create_reachability_matrix()
     reachability_creator.print_reachability_table()

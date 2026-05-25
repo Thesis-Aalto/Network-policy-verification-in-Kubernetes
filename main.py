@@ -17,7 +17,8 @@ container_discoverer = ContainerDiscoverer(application_folder_path)
 policy_parser = PolicyParser(policy_folder_path)
 
 containers = container_discoverer.containers
-reachability_creator = ReachabilityCreator(containers, policy_parser.network_policies)
+services = container_discoverer.services
+reachability_creator = ReachabilityCreator(services, containers, policy_parser.network_policies)
 
 reachability_matrix = reachability_creator.create_reachability_matrix()
 

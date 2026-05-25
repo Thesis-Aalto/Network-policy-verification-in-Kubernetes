@@ -23,6 +23,7 @@ class Container():
 
 class Service():
     def __init__(self, name, namespace, service_type, selector, ports):
+        self.identity = service_type+"-"+name
         self.name = name
         self.namespace = namespace
         self.service_type = service_type
