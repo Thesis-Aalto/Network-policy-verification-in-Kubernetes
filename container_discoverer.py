@@ -14,11 +14,11 @@ class Workload():
         
 
 class Container():
-    def __init__(self, identity, name, port, services=[], is_maybe=False):
+    def __init__(self, identity, name, port, is_maybe=False):
         self.identity = identity
         self.name = name
         self.port = port
-        self.service = services
+        self.service = []
         self.is_maybe = is_maybe
 
 class Service():
@@ -43,15 +43,14 @@ class ContainerDiscoverer():
         self.workloads = []
         self.services = []
 
-        parsed_yaml = self.parse_yaml(yaml_path)
-        self.find_workloads(parsed_yaml)
-        self.match_services_and_workloads()
+        self.parse_yaml(yaml_path)
     
     def parse_yaml(self, yaml_path):
         for file in os.listdir(yaml_path):
             with open(yaml_path+"/"+file, "r") as f:
                 parsed_yaml = list(yaml.safe_load_all(f))
-        return parsed_yaml
+                self.find_workloads(parsed_yaml)
+                self.match_services_and_workloads()
 
     def find_workloads(self, parsed_yaml):
         for component in parsed_yaml:

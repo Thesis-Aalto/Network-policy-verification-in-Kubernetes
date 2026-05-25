@@ -4,7 +4,10 @@ from container_discoverer import ContainerDiscoverer
 import sys
 import pandas as pd
 
-
+###TODO: Add services as endpoints to the matrix
+###TODO: Add internet as both row and column
+###TODO: Create a scenario tester X
+###TODO: Create NetworkPolicyRecommender to recommend network policies
 class ReachabilityCreator():
     def __init__(self, workloads, network_policies):
         self.workloads = workloads
@@ -138,11 +141,12 @@ class ReachabilityCreator():
             matrix[workload.name][container.identity] = 0
 
     def intersect_egress_and_igress(self):
-        df_egress = pd.DataFrame(self.egress_matrix)
-        df_ingress = pd.DataFrame(self.ingress_matrix)
+        df_egress = pd.DataFrame(self.egress_matrix).T
+        df_ingress = pd.DataFrame(self.ingress_matrix).T
         
         df_reachability = df_egress & df_ingress
         self.reachability_matrix = df_reachability.to_dict(orient="index")
+
     
     def print_reachability_table(self):
         if not self.reachability_matrix:
