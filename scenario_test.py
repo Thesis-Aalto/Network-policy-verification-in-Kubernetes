@@ -79,7 +79,7 @@ class ScenarioTest:
 if __name__ == "__main__":
     application_folder_path = "./application/aks-store-demo"
     policy_folder_path = "./network_policies/example"
-    result_path = "./expected_result/service_matrix.csv"
+    result_path = "./expected_result/deny-all.csv"
 
     if len(sys.argv) > 4:
         application_folder_path = sys.argv[1]

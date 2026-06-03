@@ -6,167 +6,220 @@ import pandas as pd
 
 ###TODO: Add services as endpoints to the matrix
 ###TODO: Add internet as both row and column
-###TODO: Create a scenario tester X
 ###TODO: Create NetworkPolicyRecommender to recommend network policies
 class ReachabilityCreator():
-    def __init__(self, services, workloads, network_policies):
+    def __init__(self, services, workloads, namespaces, network_policies):
         self.services = services
         self.workloads = workloads
+        self.namespaces = namespaces
         self.network_policies = network_policies
+
 
         self.ingress_matrix = self.initialize_matrix()
         self.egress_matrix = self.initialize_matrix()
-        self.reachability_matrix = {}
+        # O No policy, 1 Ingress, 2 Egress, 3 Both
         self.is_policy_applied = {}
-        self.fill_is_policy_applied()
+        self.reachability_matrix = {}
     
     def create_reachability_matrix(self):
         for policy in self.network_policies:
             self.apply_network_policy(policy)
         self.intersect_egress_and_igress()
         return self.reachability_matrix
-                    
-    def apply_network_policy(self, policy):
-        source_workloads = []
-        target_containers = []
-        for rule in policy.rules:
-            if rule.policy_type == "Ingress":
-                for workload in self.workloads:
-                    if workload.namespace == rule.namespace_label:
-                        for key, value in rule.target_labels.items():
-                            if key in workload.labels and workload.labels[key] == value:
-                                source_workloads.append(workload)
-
-                    if workload.namespace == policy.namespace:
-                        for key,value in policy.source_labels.items():
-                            if key in workload.labels and workload.labels[key] == value:
-                                for container in workload.containers:
-                                    if self.is_match_ports(container, rule, workload.services):
-                                        target_containers.append(container)
-
-                for service in services:
-                    if service.namespace == rule.namespace_label:
-                        for key, value in rule.target_labels.items():
-                            if key in service.selector and workload.selector[key] == value:
-                                target_containers.append(service)
-
-                self.fill_matrix(source_workloads, target_containers, self.ingress_matrix, rule.policy_type)
-                    
-            else:
-                for workload in self.workloads:
-                    if workload.namespace == policy.namespace:
-                        for key, value in policy.source_labels.items():
-                            if key in workload.labels and workload.labels[key] == value:
-                                source_workloads.append(workload)
-                    
-                    if workload.namespace == rule.namespace_label:
-                        for key,value in rule.target_labels.items():
-                            if key in workload.labels and workload.labels[key] == value:
-                                for container in workload.containers:
-                                    if self.is_match_ports(container, rule, workload.services):
-                                        target_containers.append(container)
-
-                for service in services:
-                    if service.namespace == rule.namespace_label:
-                        for key, value in rule.target_labels.items():
-                            if key in service.selector and service.selector[key] == value:
-                                target_containers.append(service)
-                self.fill_matrix(source_workloads, target_containers, self.egress_matrix, rule.policy_type)
-        ##Exceptional Case: Deny All
-        if len(policy.rules) == 0:
-            for policy_type in policy.policy_types:
-                source_workloads = []
-                target_containers = []
-                if policy_type == "Egress":
-                    for workload in self.workloads:
-                        if workload.namespace == policy.namespace:
-                            source_workloads.append(workload)
-                    self.fill_matrix(source_workloads, target_containers, self.egress_matrix, policy_type)
-                else:
-                    for workload in self.workloads:
-                        if workload.namespace == policy.namespace:
-                            for t_container in workload.containers:
-                                target_containers.append(t_container)
-                    for service in self.services:
-                        if service.namespace == policy.namespace:
-                            target_containers.append(service)
-
-                    self.fill_matrix(source_workloads, target_containers, self.ingress_matrix, policy_type)
-
-    def is_match_ports(self, container, policy_rule, services):
-        if len(policy_rule.ports) == 0:
-            return True
-        for port in policy_rule.ports:
-            if port.portNumber == container.port:
-                return True
-            for service in services:
-                for servicePort in service.ports:
-                    if port.portNumber == servicePort.target_port:
-                        container.is_maybe = True
-                        return True
-        return False
     
     def initialize_matrix(self):
-        matrix = {}
-        for s_workload in self.workloads:
-            matrix[s_workload.name] = {}
-            for t_workload in self.workloads:
-                for t_container in t_workload.containers:
-                    matrix[s_workload.name][t_container.identity] = 1
-            for service in self.services:
-                matrix[s_workload.name][service.service_type+"-"+service.name] = 1
-        return matrix
-    
-    #TODO: Discuss about maybe situation
-    def fill_matrix(self, source_workloads, target_containers, matrix, policy_type):
-        if policy_type == "Ingress":
-            for t_container in target_containers:
-                if len(source_workloads) == 0:
-                    self.zero_all_col(t_container, matrix)
-                for s_workload in source_workloads:
-                    if self.is_policy_applied[t_container.identity]:
-                        matrix[s_workload.name][t_container.identity] = 1
+        new_matrix = pd.DataFrame()
+        for source_namespace in self.namespaces:
+            for target_namespace in self.namespaces:
+                new_matrix.at[source_namespace.name, target_namespace.name] = 1
+        return new_matrix
+
+
+    def apply_network_policy(self, policy):
+        ###TODO: Add namespaces
+        for rule in policy.rules:
+            sources= {}
+            targets = {}
+            rule_namespace = policy.namespace if rule.namespace_label == {} else rule.namespace_label
+            if rule.policy_type == "Egress":
+                # Finding Sources
+                if policy.source_labels == {}:
+                    sources[policy.namespace] = 1
+                else:
+                    ### Adding Workloads
+                    for workload in self.workloads[policy.namespace]:
+                        for key, value in policy.source_labels.items():
+                            if key in workload.labels and workload.labels[key] == value:
+                                sources[workload.namespace+"_"+workload.name] = 1
+
+                ### Finding targets
+                if rule.target_labels == {}:
+                    if len(rule.ports) != 0:
+                        ###Check if namespace exist in the application yaml
+                        if rule_namespace in self.workloads:
+                            targets[rule_namespace]=1
                     else:
-                        self.zero_all_col(t_container, matrix)
-                        matrix[s_workload.name][t_container.identity] = 1
-                        self.is_policy_applied[t_container.identity] = 1
-        else:
-            for s_workload in source_workloads:
-                if len(target_containers)==0:
-                      self.zero_all_row(s_workload, matrix)
-                for t_container in target_containers:
-                    if self.is_policy_applied[s_workload.name]:
-                        matrix[s_workload.name][t_container.identity] = 1
+                        if rule_namespace in self.workloads:
+                            for port in rule.ports:
+                                target = rule_namespace+"_"+port.portNumber+"_"+port.protocol
+                                targets[target]=1
+                else:
+                    if len(rule.ports) == 0:
+                        for workload in self.workloads[rule_namespace]:
+                            for key, value in rule.target_labels.items():
+                                if key in workload.labels and workload.labels[key] == value:
+                                    target = rule_namespace+"_"+workload.name
+                                    targets[target]=1
+
+                        for service in self.services[rule_namespace]:
+                            for key, value in rule.target_labels.items():
+                                if key in service.selector and service.selector[key] == value:
+                                    target = rule_namespace+"_"+service.identity
+                                    targets[target]=1
+                        
                     else:
-                        self.zero_all_row(s_workload, matrix)
-                        matrix[s_workload.name][t_container.identity] = 1
-                        self.is_policy_applied[s_workload.name]
+                        for workload in self.workloads[rule_namespace]:
+                            for key, value in rule.target_labels.items():
+                                if key in workload.labels and workload.labels[key] == value:
+                                    for container in workload.containers:
+                                        for port in rule.ports:
+                                            #Not included in policy mismatch, might be a problem. All traffic to the target must be denied in this case.
+                                            if port.portNumber == container.port:
+                                                target = rule_namespace+"_"+workload.name+"_"+str(container.port)+"_"+port.protocol
+                                                targets[target]=1
+                        for service in self.services[rule_namespace]:
+                            for key, value in rule.target_labels.items():
+                                if key in service.selector and service.selector[key] == value:
+                                    for port in service.ports:
+                                        for rule_port in rule.ports:
+                                            if port.port == rule_port.portNumber:
+                                                target = rule_namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
+                                                targets[target] = 1
+                self.fill_matrix(sources, targets, rule.policy_type)
+            else:
+                ### Finding sources
+                if rule.target_labels == {}:
+                    sources[rule_namespace]=1
+                else:
+                    for workload in self.workloads[rule_namespace]:
+                        for key, value in rule.target_labels.items():
+                            if key in workload.labels and workload.labels[key] == value:
+                                sources[workload.namespace+"_"+workload.name]=1
                     
+                if policy.source_labels == {}:
+                    if len(rule.ports) == 0:
+                        targets[policy.namespace]=1
+                    else:
+                        for port in rule.ports:
+                            targets[policy.namespace+"_"+port.portNumber+"_"+port.protocol]=1
+                else:
+                    if len(rule.ports) == 0:
+                        for workload in self.workloads[policy.namespace]:
+                            for key, value in policy.source_labels.items():
+                                if key in workload.labels and workload.labels[key] == value:
+                                    target = workload.namespace+"_"+workload.name
+                                    targets[target] = 1
+                        for service in self.services:
+                            for key, value in policy.source_labels.items():
+                                if key in service.selector and service.selector[key] == value and service.namespace == policy.namespace:
+                                    target = policy.namespace+"_"+service.identity
+                                    targets[target] = 1
+                                    
+                    else:
+                        for workload in self.workloads[policy.namespace]:
+                            for key, value in policy.source_labels.items():
+                                if key in workload.labels and workload.labels[key] == value:
+                                    for container in workload.containers:
+                                        for port in rule.ports:
+                                            if port.portNumber == container.port:
+                                                target = policy.namespace+"_"+workload.name+"_"+str(container.port)+"_"+port.protocol
+                                                targets[target]=1
+                        for service in self.services[policy.namespace]:
+                            for key, value in policy.source_labels.items():
+                                if key in service.selector and service.selector[key] == value:
+                                    for port in service.ports:
+                                        for rule_port in rule.ports:
+                                            if port.port == rule_port.portNumber:
+                                                target = policy.namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
+                                                targets[target] = 1
+                self.fill_matrix(sources, targets, rule.policy_type)
 
-    ### is_policy_applied shows that is any policy applied to workloads or endpoints
-    def fill_is_policy_applied(self):
-        for workload in self.workloads:
-            self.is_policy_applied[workload.name] = 0
-            for container in workload.containers:
-                self.is_policy_applied[container.identity] = 0
-        
-    
-    def zero_all_row(self, source_workload, matrix):
-        for workload in self.workloads:
-            for container in workload.containers:
-                matrix[source_workload.name][container.identity] = 0
-        for service in self.services:
-            matrix[source_workload.name][service.identity] = 0
+    ###TODO: Add namespace logic to here
+    def fill_matrix(self, source_workloads, target_endpoints, policy_type):
+        if policy_type == "Ingress":
+            for target in target_endpoints:
+                for source in source_workloads: 
+                    self.ingress_matrix.at[source, target] = 1
+                    self.ingress_matrix.loc[source] = self.ingress_matrix.loc[source].fillna(1)
+                    self.ingress_matrix[target] = self.ingress_matrix[target].fillna(0)
 
-    def zero_all_col(self, container, matrix):
-        for workload in self.workloads:
-            matrix[workload.name][container.identity] = 0
+                    #Update Egress
+                    if source not in self.egress_matrix.index:
+                        self.egress_matrix.loc[source] = 1
+                    if target not in self.egress_matrix.columns:
+                        self.egress_matrix[target] = 1
+                        for row in self.egress_matrix.index:
+                            if row in self.is_policy_applied and (self.is_policy_applied[row] == 2 or self.is_policy_applied[row]==3):
+                                self.egress_matrix.at[row, target] = 0
+                        
+                target_components = target.split("_")
+                while len(target_components) > 2:
+                    #Update Ingress
+                    target_components.pop()
+                    new_endpoint = "_".join(target_components)
+                    self.ingress_matrix[new_endpoint] = 0
 
-    def intersect_egress_and_igress(self):
-        df_egress = pd.DataFrame(self.egress_matrix).T
-        df_ingress = pd.DataFrame(self.ingress_matrix).T
-        
-        df_reachability = df_egress & df_ingress
+                    #Update Egress
+                    if new_endpoint not in self.egress_matrix.columns:
+                        self.egress_matrix[new_endpoint] = 1
+                        for row in self.egress_matrix.index:
+                            if row in self.is_policy_applied and (self.is_policy_applied[row] == 2 or self.is_policy_applied[3]):
+                                self.egress_matrix[row, new_endpoint] = 0
+                    
+                    if new_endpoint not in self.is_policy_applied:
+                        self.is_policy_applied[new_endpoint] = 1
+                    elif self.is_policy_applied[new_endpoint] == 2:
+                        self.is_policy_applied[new_endpoint] = 3
+
+
+                if target not in self.is_policy_applied:
+                    self.is_policy_applied[target] = 1
+                elif self.is_policy_applied[target] == 2:
+                    self.is_policy_applied[target] = 3
+        else:
+            for source in source_workloads:
+                for target in target_endpoints:
+                    target_components = target.split("_")
+                    while len(target_components) > 2:
+                        target_components.pop()
+                        new_endpoint = "_".join(target_components)
+                        self.egress_matrix[new_endpoint] = 1
+
+                        #Update Ingress
+                        if new_endpoint not in self.ingress_matrix.columns:
+                            self.ingress_matrix[new_endpoint] = 1
+                    
+                    self.egress_matrix.at[source, target] = 1
+                    self.egress_matrix[target] = self.egress_matrix[target].fillna(1)
+                    self.egress_matrix.loc[source] = self.egress_matrix.loc[source].fillna(0)
+                    #Update Ingress
+                    if target not in self.ingress_matrix.columns:
+                        self.ingress_matrix[target] = 1
+                    if source not in self.ingress_matrix.index:
+                        self.ingress_matrix.loc[source] = 1
+                        for col in self.ingress_matrix.columns:
+                            if col in self.is_policy_applied and (self.is_policy_applied[col] == 1 or self.is_policy_applied[col] == 3):
+                                self.ingress_matrix.at[source, col] = 0
+                    else:
+                        self.ingress_matrix.at[source, target] = 1
+                    
+                if source not in self.is_policy_applied:
+                    self.is_policy_applied[source] = 2
+                elif self.is_policy_applied[source] == 1:
+                    self.is_policy_applied[source] = 3
+
+    def intersect_egress_and_igress(self): 
+        df_reachability = self.egress_matrix * self.ingress_matrix
         self.reachability_matrix = df_reachability.to_dict(orient="index")
 
     
@@ -214,7 +267,8 @@ if __name__ == "__main__":
 
     workloads = container_discoverer.workloads
     services = container_discoverer.services
-    reachability_creator = ReachabilityCreator(services, workloads, policy_parser.network_policies)
+    namespaces = container_discoverer.namespaces
+    reachability_creator = ReachabilityCreator(services, workloads, namespaces, policy_parser.network_policies)
 
     reachability_matrix = reachability_creator.create_reachability_matrix()
     reachability_creator.print_reachability_table()

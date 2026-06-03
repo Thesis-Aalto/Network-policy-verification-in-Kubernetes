@@ -62,7 +62,7 @@ class PolicyParser():
                 if policy_type in spec["policyTypes"]:
                     policy_types.append(policy_type)
                     for rule in spec.get(policy_type.lower()) or []:
-                        all_targets = self.get_target_labels(policy_type, rule, namespace, is_cilium)
+                        all_targets = self.get_target_labels(policy_type, rule, is_cilium)
                         ports = self.get_rule_ports(rule, is_cilium)
                         for target_labels, namespace_label in all_targets:
                             new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
@@ -78,7 +78,7 @@ class PolicyParser():
             new_network_policy = Policy(name, namespace, source_labels, rules, policy_types)
             self.network_policies.append(new_network_policy)
 
-    def get_target_labels(self, policy_type, rule, namespace, is_cilium=False):
+    def get_target_labels(self, policy_type, rule, is_cilium=False):
         results = []
         if rule == {}:
             return results
@@ -86,8 +86,7 @@ class PolicyParser():
             labels = rule.get("fromEndpoints", []) if policy_type == "Ingress" else rule.get("toEndpoints", [])
             for endpoint in labels:
                 target_labels, namespace_label = self.split_cilium_labels(
-                    endpoint.get("matchLabels", {}), namespace
-                )
+                    endpoint.get("matchLabels", {}))
                 results.append((target_labels, namespace_label))
             return results
         labels = rule.get("from", []) if policy_type == "Ingress" else rule.get("to", [])
@@ -95,13 +94,13 @@ class PolicyParser():
             pod_selector = label.get("podSelector", {}).get("matchLabels", {})
             namespace_selector = label.get("namespaceSelector", {}).get("matchLabels", {})
             target_labels = dict(pod_selector)
-            namespace_label = next(iter(namespace_selector.values()), namespace)
+            namespace_label = dict(namespace_selector)
             results.append((target_labels, namespace_label))
         return results
 
-    def split_cilium_labels(self, match_labels, default_namespace):
+    def split_cilium_labels(self, match_labels):
         labels = dict(match_labels)
-        namespace_label = default_namespace
+        namespace_label = {}
         for key in CILIUM_NAMESPACE_LABEL_KEYS:
             if key in labels:
                 namespace_label = labels.pop(key)
@@ -128,7 +127,7 @@ class PolicyParser():
             print(f"Policy Name: {policy.name}\nPolicy Namespace: {policy.namespace}\nSource Labels: {policy.source_labels}\nPolicy Types: {policy.policy_types}")
             print("Rules:")
             for rule in policy.rules:
-                print(f"\tPolicy Type: {rule.policy_type}\n\tTarget Labels:{rule.target_labels}")
+                print(f"\tPolicy Type: {rule.policy_type}\n\tTarget Labels: {rule.target_labels}\n\tNamespace Label: {rule.namespace_label}")
                 print("\tPorts")
                 for port in rule.ports:
                     print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")
