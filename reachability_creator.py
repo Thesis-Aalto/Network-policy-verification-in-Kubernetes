@@ -4,7 +4,6 @@ from container_discoverer import ContainerDiscoverer
 import sys
 import pandas as pd
 
-###TODO: Add services as endpoints to the matrix
 ###TODO: Add internet as both row and column
 ###TODO: Create NetworkPolicyRecommender to recommend network policies
 class ReachabilityCreator():
@@ -36,6 +35,20 @@ class ReachabilityCreator():
 
 
     def apply_network_policy(self, policy):
+        if len(policy.rules) == 0:
+            sources = {}
+            targets = {}
+            if policy.source_labels == {}:
+                sources[policy.namespace] = 1
+            else:
+                for workload in self.workloads.get(policy.namespace, []):
+                    for key, value in policy.source_labels.items():
+                        if key in workload.labels and workload.labels[key] == value:
+                            sources[workload.namespace+"_"+workload.name] = 1
+            for policy_type in policy.policy_types:
+                self.fill_matrix(sources, targets, policy_type, policy.namespace)
+
+
         for rule in policy.rules:
             sources= {}
             targets = {}
@@ -152,11 +165,16 @@ class ReachabilityCreator():
                                             if port.port == rule_port.portNumber:
                                                 target = policy.namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
                                                 targets[target] = 1
-            self.fill_matrix(sources, targets, rule.policy_type)
+            self.fill_matrix(sources, targets, rule.policy_type, policy.namespace)
 
     ###TODO: Add namespace logic to here
-    def fill_matrix(self, source_workloads, target_endpoints, policy_type):
+    def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace):
         if policy_type == "Ingress":
+            #Deny all case
+            if len(target_endpoints) == 0:
+                for source in source_workloads:
+                    self.ingress_matrix.at[policy_namespace, source] = 0
+
             for target in target_endpoints:
                 for source in source_workloads: 
                     self.ingress_matrix.at[source, target] = 1
@@ -198,6 +216,10 @@ class ReachabilityCreator():
                     self.is_policy_applied[target] = 3
         else:
             for source in source_workloads:
+                #Deny all case
+                if len(target_endpoints) == 0:
+                    self.egress_matrix.at[source, policy_namespace] = 0
+
                 for target in target_endpoints:
                     target_components = target.split("_")
                     while len(target_components) > 2:
