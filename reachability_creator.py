@@ -36,18 +36,26 @@ class ReachabilityCreator():
 
 
     def apply_network_policy(self, policy):
-        ###TODO: Add namespaces
         for rule in policy.rules:
             sources= {}
             targets = {}
-            rule_namespace = policy.namespace if rule.namespace_label == {} else rule.namespace_label
+
+            targeted_namespaces = []
+            for namespace in self.namespaces:
+                for key, value in rule.namespace_label.items():
+                    if key in namespace.labels and namespace.labels[key] == value:
+                        targeted_namespaces.append(namespace.name)
+
+            if len(targeted_namespaces) == 0:
+                targeted_namespaces.append("default")
+
             if rule.policy_type == "Egress":
                 # Finding Sources
                 if policy.source_labels == {}:
                     sources[policy.namespace] = 1
                 else:
                     ### Adding Workloads
-                    for workload in self.workloads[policy.namespace]:
+                    for workload in self.workloads.get(policy.namespace, []):
                         for key, value in policy.source_labels.items():
                             if key in workload.labels and workload.labels[key] == value:
                                 sources[workload.namespace+"_"+workload.name] = 1
@@ -55,56 +63,60 @@ class ReachabilityCreator():
                 ### Finding targets
                 if rule.target_labels == {}:
                     if len(rule.ports) != 0:
-                        ###Check if namespace exist in the application yaml
-                        if rule_namespace in self.workloads:
-                            targets[rule_namespace]=1
+                        for namespace in targeted_namespaces:
+                            if namespace in self.workloads:
+                                targets[namespace]=1
                     else:
-                        if rule_namespace in self.workloads:
-                            for port in rule.ports:
-                                target = rule_namespace+"_"+port.portNumber+"_"+port.protocol
-                                targets[target]=1
+                        for namespace in targeted_namespaces:
+                            if namespace in self.workloads:
+                                for port in rule.ports:
+                                    target = namespace+"_"+port.portNumber+"_"+port.protocol
+                                    targets[target]=1
                 else:
                     if len(rule.ports) == 0:
-                        for workload in self.workloads[rule_namespace]:
-                            for key, value in rule.target_labels.items():
-                                if key in workload.labels and workload.labels[key] == value:
-                                    target = rule_namespace+"_"+workload.name
-                                    targets[target]=1
+                        for namespace in targeted_namespaces:
+                            for workload in self.workloads.get(namespace, []):
+                                for key, value in rule.target_labels.items():
+                                    if key in workload.labels and workload.labels[key] == value:
+                                        target = namespace+"_"+workload.name
+                                        targets[target]=1
 
-                        for service in self.services[rule_namespace]:
-                            for key, value in rule.target_labels.items():
-                                if key in service.selector and service.selector[key] == value:
-                                    target = rule_namespace+"_"+service.identity
-                                    targets[target]=1
+                            for service in self.services.get(namespace, []):
+                                for key, value in rule.target_labels.items():
+                                    if key in service.selector and service.selector[key] == value:
+                                        target = namespace+"_"+service.identity
+                                        targets[target]=1
                         
                     else:
-                        for workload in self.workloads[rule_namespace]:
-                            for key, value in rule.target_labels.items():
-                                if key in workload.labels and workload.labels[key] == value:
-                                    for container in workload.containers:
-                                        for port in rule.ports:
-                                            #Not included in policy mismatch, might be a problem. All traffic to the target must be denied in this case.
-                                            if port.portNumber == container.port:
-                                                target = rule_namespace+"_"+workload.name+"_"+str(container.port)+"_"+port.protocol
-                                                targets[target]=1
-                        for service in self.services[rule_namespace]:
-                            for key, value in rule.target_labels.items():
-                                if key in service.selector and service.selector[key] == value:
-                                    for port in service.ports:
-                                        for rule_port in rule.ports:
-                                            if port.port == rule_port.portNumber:
-                                                target = rule_namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
-                                                targets[target] = 1
-                self.fill_matrix(sources, targets, rule.policy_type)
+                        for namespace in targeted_namespaces:
+                            for workload in self.workloads.get(namespace, []):
+                                for key, value in rule.target_labels.items():
+                                    if key in workload.labels and workload.labels[key] == value:
+                                        for container in workload.containers:
+                                            for port in rule.ports:
+                                                #Not included in policy mismatch, might be a problem. All traffic to the target must be denied in this case.
+                                                if port.portNumber == container.port:
+                                                    target = namespace+"_"+workload.name+"_"+str(container.port)+"_"+port.protocol
+                                                    targets[target]=1
+
+                            for service in self.services.get(namespace, []):
+                                for key, value in rule.target_labels.items():
+                                    if key in service.selector and service.selector[key] == value:
+                                        for port in service.ports:
+                                            for rule_port in rule.ports:
+                                                if port.port == rule_port.portNumber:
+                                                    target = namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
+                                                    targets[target] = 1
             else:
                 ### Finding sources
-                if rule.target_labels == {}:
-                    sources[rule_namespace]=1
-                else:
-                    for workload in self.workloads[rule_namespace]:
-                        for key, value in rule.target_labels.items():
-                            if key in workload.labels and workload.labels[key] == value:
-                                sources[workload.namespace+"_"+workload.name]=1
+                for namespace in targeted_namespaces:
+                    if rule.target_labels == {}:
+                        sources[namespace]=1
+                    else:
+                        for workload in self.workloads.get(namespace, []):
+                            for key, value in rule.target_labels.items():
+                                if key in workload.labels and workload.labels[key] == value:
+                                    sources[workload.namespace+"_"+workload.name]=1
                     
                 if policy.source_labels == {}:
                     if len(rule.ports) == 0:
@@ -114,7 +126,7 @@ class ReachabilityCreator():
                             targets[policy.namespace+"_"+port.portNumber+"_"+port.protocol]=1
                 else:
                     if len(rule.ports) == 0:
-                        for workload in self.workloads[policy.namespace]:
+                        for workload in self.workloads.get(policy.namespace, []):
                             for key, value in policy.source_labels.items():
                                 if key in workload.labels and workload.labels[key] == value:
                                     target = workload.namespace+"_"+workload.name
@@ -126,7 +138,7 @@ class ReachabilityCreator():
                                     targets[target] = 1
                                     
                     else:
-                        for workload in self.workloads[policy.namespace]:
+                        for workload in self.workloads.get(policy.namespace, []):
                             for key, value in policy.source_labels.items():
                                 if key in workload.labels and workload.labels[key] == value:
                                     for container in workload.containers:
@@ -134,7 +146,7 @@ class ReachabilityCreator():
                                             if port.portNumber == container.port:
                                                 target = policy.namespace+"_"+workload.name+"_"+str(container.port)+"_"+port.protocol
                                                 targets[target]=1
-                        for service in self.services[policy.namespace]:
+                        for service in self.services.get(policy.namespace, []):
                             for key, value in policy.source_labels.items():
                                 if key in service.selector and service.selector[key] == value:
                                     for port in service.ports:
@@ -142,7 +154,7 @@ class ReachabilityCreator():
                                             if port.port == rule_port.portNumber:
                                                 target = policy.namespace+"_"+service.identity+"_"+str(rule_port.portNumber)+"_"+rule_port.protocol
                                                 targets[target] = 1
-                self.fill_matrix(sources, targets, rule.policy_type)
+            self.fill_matrix(sources, targets, rule.policy_type)
 
     ###TODO: Add namespace logic to here
     def fill_matrix(self, source_workloads, target_endpoints, policy_type):

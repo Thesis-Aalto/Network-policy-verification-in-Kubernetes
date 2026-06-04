@@ -40,9 +40,9 @@ class ServicePort():
         self.node_port = node_port
 
 class Namespace():
-    def __init__(self, name, labels={"kubernetes.io/metadata.name":"default"}):
+    def __init__(self, name, labels={}):
         self.name = name
-        self.labels = labels
+        self.labels = labels if labels != {} else {"kubernetes.io/metadata.name":name}
 
 class ContainerDiscoverer():
     def __init__(self, yaml_path):
@@ -102,15 +102,16 @@ class ContainerDiscoverer():
                 self.services.setdefault(namespace, []).append(new_service)
             elif parent_kind == "Namespace":
                 new_namespace = self.get_namespace(component)
-                self.namespaces[new_namespace.name] = new_namespace
-            if namespace not in self.namespaces:
+                self.namespaces.append(new_namespace)
+            if parent_kind != "Namespace" and not any(ns.name == namespace for ns in self.namespaces):
                 self.namespaces.append(Namespace(namespace))
+
     #Update to get real namespace
     def get_service(self, service):
         name = service["metadata"]["name"]
         namespace = service["metadata"].get("namespace") or "default"
         service_type = service["spec"].get("type") or "ClusterIP"
-        selector = service["spec"]["selector"]
+        selector = service["spec"].get("selector") or {}
         ports = []
         for port in service["spec"]["ports"]:
             port_name = port.get("name") or ""
@@ -123,8 +124,8 @@ class ContainerDiscoverer():
         return  Service(name, namespace, service_type, selector, ports)
 
     def get_namespace(self, component):
-        name = component["name"]
-        labels = component["labels"]
+        name = component["metadata"]["name"]
+        labels = component["metadata"].get("labels") or {}
         return Namespace(name, labels)
 
     def match_services_and_workloads(self):
