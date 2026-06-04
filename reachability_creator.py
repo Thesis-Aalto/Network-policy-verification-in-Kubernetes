@@ -54,15 +54,13 @@ class ReachabilityCreator():
                 if policy.source_labels == {}:
                     sources[policy.namespace] = 1
                 else:
-                    ### Adding Workloads
                     for workload in self.workloads.get(policy.namespace, []):
                         for key, value in policy.source_labels.items():
                             if key in workload.labels and workload.labels[key] == value:
                                 sources[workload.namespace+"_"+workload.name] = 1
-
                 ### Finding targets
                 if rule.target_labels == {}:
-                    if len(rule.ports) != 0:
+                    if len(rule.ports) == 0:
                         for namespace in targeted_namespaces:
                             if namespace in self.workloads:
                                 targets[namespace]=1
@@ -131,7 +129,7 @@ class ReachabilityCreator():
                                 if key in workload.labels and workload.labels[key] == value:
                                     target = workload.namespace+"_"+workload.name
                                     targets[target] = 1
-                        for service in self.services:
+                        for service in self.services.get(policy.namespace, []):
                             for key, value in policy.source_labels.items():
                                 if key in service.selector and service.selector[key] == value and service.namespace == policy.namespace:
                                     target = policy.namespace+"_"+service.identity
