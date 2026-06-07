@@ -16,7 +16,7 @@ class ReachabilityCreator():
 
         self.ingress_matrix = self.initialize_matrix()
         self.egress_matrix = self.initialize_matrix()
-        # O No policy, 1 Ingress, 2 Egress, 3 Both
+        # 1 Ingress, 2 Egress, 3 Both
         self.is_policy_applied = {}
         self.reachability_matrix = {}
     
@@ -169,11 +169,16 @@ class ReachabilityCreator():
 
     ###TODO: Add namespace logic to here
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace):
+
         if policy_type == "Ingress":
             #Deny all case
             if len(target_endpoints) == 0:
                 for source in source_workloads:
-                    self.ingress_matrix.at[policy_namespace, source] = 0
+                    self.ingress_matrix.at[source, policy_namespace] = 0
+                    if policy_namespace not in self.is_policy_applied:
+                        self.is_policy_applied[policy_namespace] = 1
+                    elif self.is_policy_applied[policy_namespace] == 2:
+                        self.is_policy_applied[policy_namespace] = 3
 
             for target in target_endpoints:
                 for source in source_workloads: 
@@ -201,8 +206,8 @@ class ReachabilityCreator():
                     if new_endpoint not in self.egress_matrix.columns:
                         self.egress_matrix[new_endpoint] = 1
                         for row in self.egress_matrix.index:
-                            if row in self.is_policy_applied and (self.is_policy_applied[row] == 2 or self.is_policy_applied[3]):
-                                self.egress_matrix[row, new_endpoint] = 0
+                            if row in self.is_policy_applied and (self.is_policy_applied[row] == 2 or self.is_policy_applied[row]==3):
+                                self.egress_matrix.at[row, new_endpoint] = 0
                     
                     if new_endpoint not in self.is_policy_applied:
                         self.is_policy_applied[new_endpoint] = 1
@@ -266,7 +271,6 @@ class ReachabilityCreator():
         col_w = max(max(len(s) for s in sources), max(len(t) for t in targets), 8) + 2
 
         SYMBOLS = {0: "✗", 1: "✓", 2: "?"}
-
         header = f"{'':>{col_w}} |" + "".join(f" {t:^{col_w}} |" for t in targets)
         separator = "-" * len(header)
 
