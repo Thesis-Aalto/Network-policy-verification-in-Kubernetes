@@ -139,51 +139,62 @@ class ContainerDiscoverer():
                     if is_add:
                         workload.services.append(service)
                         
-    def print_workloads(self):
-        for namespace, workloads in self.workloads.items():
-            print(f"\n{'='*40}")
-            print(f"NAMESPACE: {namespace}")
-            print(f"{'='*40}")
-            for workload in workloads:
-                print(f"\n=== WORKLOAD: {workload.name} ===")
-                print(f"  Kind:      {workload.kind}")
-                print(f"  Namespace: {workload.namespace}")
-                print(f"  Labels:    {workload.labels}")
+    def print_results(self):
+        print("\n" + "="*40)
+        print("ALL SERVICES")
+        print("="*40 + "\n")
+        
+        # Use .items() safely; if no services exist, it gracefully skips
+        for namespace, services in self.services.items():
+            for service in services:
+                print(f"    - Name:         {service.name}")
+                print(f"      Namespace:    {namespace}")
+                print(f"      Type:         {service.service_type}")
+                print(f"      Selector:     {service.selector}")
+
+                if service.ports:
+                    print("      Ports:")
+                    for port in service.ports:
+                        port_info = f"Port: {port.port} -> {port.target_port}/{port.protocol}"
+                        if port.node_port:
+                            port_info += f" (NodePort: {port.node_port})"
+                        if port.name:
+                            port_info = f"[{port.name}] " + port_info
+                        print(f"        * {port_info}")
                 print()
-
-                print("  Services:")
+                
+        print("\n" + "="*40)
+        print("ALL WORKLOADS BY NAMESPACE")
+        print("="*40 + "\n")
+        
+        for namespace, workloads in self.workloads.items():
+            print(f"NAMESPACE: {namespace}")
+            print("-" * 40)
+            for workload in workloads:
+                print(f"  === WORKLOAD: {workload.name} ===")
+                print(f"    Kind:      {workload.kind}")
+                print(f"    Namespace: {workload.namespace}")
+                print(f"    Labels:    {workload.labels}")
+                
+                # Print connected services mapped from match_services_and_workloads
+                print("    Connected Services:")
                 if not workload.services:
-                    print("    (None)")
+                    print("      (None)")
                 for service in workload.services:
-                    print(f"    - Name:         {service.name}")
-                    print(f"      Namespace:    {service.namespace}")
-                    print(f"      Type:         {service.service_type}")
-                    print(f"      Selector:     {service.selector}")
-
-                    if service.ports:
-                        print("      Ports:")
-                        for port in service.ports:
-                            port_info = f"Port: {port.port} -> {port.target_port}/{port.protocol}"
-                            if port.node_port:
-                                port_info += f" (NodePort: {port.node_port})"
-                            if port.name:
-                                port_info = f"[{port.name}] " + port_info
-                            print(f"        * {port_info}")
-                    print()
-
-                print("  Containers:")
+                    print(f"      - {service.name} ({service.service_type})")
+                
+                print("    Containers:")
                 if not workload.containers:
-                    print("    (None)")
+                    print("      (None)")
                 for container in workload.containers:
-                    print(f"    - Name: {container.name}")
-                    print(f"      Port: {container.port}")
-
-                print("\n" + "="*40 + "\n")
-
+                    print(f"      - Name: {container.name}")
+                    print(f"        Port: {container.port if container.port else 'None'}")
+                print()
+            print("="*40 + "\n")
 if __name__ == "__main__":
     application_folder_path = "./application/aks-store-demo"
     if (len(sys.argv)) == 2:
         application_folder_path = sys.argv[1]
     
     a = ContainerDiscoverer(application_folder_path)
-    a.print_workloads()
+    a.print_results()
