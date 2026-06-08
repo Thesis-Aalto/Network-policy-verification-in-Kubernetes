@@ -1,7 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database-ns
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend-ns
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: frontend-ns
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb
+  namespace: database-ns
 spec:
   serviceName: mongodb
   replicas: 1
@@ -53,6 +69,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongodb
+  namespace: database-ns
 spec:
   ports:
     - port: 27017
@@ -67,11 +84,13 @@ data:
 kind: ConfigMap
 metadata:
   name: rabbitmq-enabled-plugins
+  namespace: database-ns
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: rabbitmq-secrets
+  namespace: database-ns
 data:
   RABBITMQ_DEFAULT_USER: dXNlcm5hbWU=
   RABBITMQ_DEFAULT_PASS: cGFzc3dvcmQ=
@@ -80,6 +99,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rabbitmq
+  namespace: database-ns
 spec:
   serviceName: rabbitmq
   replicas: 1
@@ -145,6 +165,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq
+  namespace: database-ns
 spec:
   selector:
     app: rabbitmq
@@ -161,6 +182,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: order-service-configs
+  namespace: backend-ns
 data:
   ORDER_QUEUE_PORT: "5672"
   ORDER_QUEUE_HOSTNAME: "rabbitmq"
@@ -171,6 +193,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: order-service-secrets
+  namespace: backend-ns
 data:
   ORDER_QUEUE_USERNAME: dXNlcm5hbWU=
   ORDER_QUEUE_PASSWORD: cGFzc3dvcmQ=
@@ -179,6 +202,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: order-service
+  namespace: backend-ns
 spec:
   replicas: 1
   selector:
@@ -246,6 +270,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: order-service
+  namespace: backend-ns
 spec:
   type: ClusterIP
   ports:
@@ -259,6 +284,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: makeline-service
+  namespace: backend-ns
 spec:
   replicas: 1
   selector:
@@ -323,6 +349,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: makeline-service
+  namespace: backend-ns
 spec:
   type: ClusterIP
   ports:
@@ -336,6 +363,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: product-service
+  namespace: backend-ns
 spec:
   replicas: 1
   selector:
@@ -382,6 +410,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: product-service
+  namespace: backend-ns
 spec:
   type: ClusterIP
   ports:
@@ -395,6 +424,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: store-front
+  namespace: frontend-ns
 spec:
   replicas: 1
   selector:
@@ -446,6 +476,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: store-front
+  namespace: frontend-ns
 spec:
   ports:
     - port: 80
@@ -458,6 +489,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: store-admin
+  namespace: frontend-ns
 spec:
   replicas: 1
   selector:
@@ -509,6 +541,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: store-admin
+  namespace: frontend-ns
 spec:
   ports:
     - port: 80
@@ -521,6 +554,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: virtual-customer
+  namespace: frontend-ns
 spec:
   replicas: 1
   selector:
@@ -539,8 +573,6 @@ spec:
           env:
             - name: ORDER_SERVICE_URL
               value: http://order-service:3000/
-            - name: ORDERS_PER_HOUR
-              value: "100"
           resources:
             requests:
               cpu: 1m
@@ -569,6 +601,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: virtual-worker
+  namespace: frontend-ns
 spec:
   replicas: 1
   selector:
