@@ -84,7 +84,7 @@ class ReachabilityCreator():
                         for namespace in targeted_namespaces:
                             if namespace in self.workloads:
                                 for port in rule.ports:
-                                    target = namespace+"_"+port.portNumber+"_"+port.protocol
+                                    target = namespace+"_"+str(port.portNumber)+"_"+port.protocol
                                     targets[target]=1
                 else:
                     if len(rule.ports) == 0:
@@ -137,7 +137,7 @@ class ReachabilityCreator():
                         targets[policy.namespace]=1
                     else:
                         for port in rule.ports:
-                            targets[policy.namespace+"_"+port.portNumber+"_"+port.protocol]=1
+                            targets[policy.namespace+"_"+str(port.portNumber)+"_"+port.protocol]=1
                 else:
                     if len(rule.ports) == 0:
                         for workload in self.workloads.get(policy.namespace, []):
@@ -281,6 +281,8 @@ class ReachabilityCreator():
                     self.is_policy_applied[component] = 3
             else:
                 self.is_policy_applied[component] = 2
+
+
     def intersect_egress_and_igress(self): 
         df_reachability = self.egress_matrix * self.ingress_matrix
         self.reachability_matrix = df_reachability.to_dict(orient="index")
