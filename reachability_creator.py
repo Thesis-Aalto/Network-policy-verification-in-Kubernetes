@@ -4,6 +4,9 @@ from container_discoverer import ContainerDiscoverer
 import sys
 import pandas as pd
 
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 2000)
+
 ###TODO: Add internet as both row and column
 ###TODO: Create NetworkPolicyRecommender to recommend network policies
 class ReachabilityCreator():
@@ -167,9 +170,10 @@ class ReachabilityCreator():
                                                 targets[target] = 1
             self.fill_matrix(sources, targets, rule.policy_type, policy.namespace)
 
-    ###TODO: Add namespace logic to here
+    ###TODO: Fix port mismatch situation
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace):
 
+        print(target_endpoints)
         if policy_type == "Ingress":
             #Deny all case
             if len(target_endpoints) == 0:
@@ -200,7 +204,8 @@ class ReachabilityCreator():
                     #Update Ingress
                     target_components.pop()
                     new_endpoint = "_".join(target_components)
-                    self.ingress_matrix[new_endpoint] = 0
+                    if new_endpoint not in self.is_policy_applied or self.is_policy_applied[new_endpoint] == 1 or self.is_policy_applied[new_endpoint] == 3:
+                        self.ingress_matrix[new_endpoint] = 0
 
                     #Update Egress
                     if new_endpoint not in self.egress_matrix.columns:
@@ -220,17 +225,18 @@ class ReachabilityCreator():
                 elif self.is_policy_applied[target] == 2:
                     self.is_policy_applied[target] = 3
         else:
+            print(target_endpoints)
             for source in source_workloads:
                 #Deny all case
                 if len(target_endpoints) == 0:
                     self.egress_matrix.at[source, policy_namespace] = 0
-
                 for target in target_endpoints:
                     target_components = target.split("_")
                     while len(target_components) > 2:
                         target_components.pop()
                         new_endpoint = "_".join(target_components)
-                        self.egress_matrix[new_endpoint] = 1
+                        if new_endpoint not in self.egress_matrix.columns:
+                            self.egress_matrix[new_endpoint] = 0
 
                         #Update Ingress
                         if new_endpoint not in self.ingress_matrix.columns:
