@@ -172,8 +172,6 @@ class ReachabilityCreator():
 
     ###TODO: Fix port mismatch situation
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace):
-
-        print(target_endpoints)
         if policy_type == "Ingress":
             #Deny all case
             if len(target_endpoints) == 0:
@@ -225,7 +223,6 @@ class ReachabilityCreator():
                 elif self.is_policy_applied[target] == 2:
                     self.is_policy_applied[target] = 3
         else:
-            print(target_endpoints)
             for source in source_workloads:
                 #Deny all case
                 if len(target_endpoints) == 0:
@@ -241,7 +238,8 @@ class ReachabilityCreator():
                         #Update Ingress
                         if new_endpoint not in self.ingress_matrix.columns:
                             self.ingress_matrix[new_endpoint] = 1
-                    
+                    if source not in self.is_policy_applied or self.is_policy_applied[source] == 1:
+                        self.egress_matrix.loc[source] = 0
                     self.egress_matrix.at[source, target] = 1
                     self.egress_matrix[target] = self.egress_matrix[target].fillna(1)
                     self.egress_matrix.loc[source] = self.egress_matrix.loc[source].fillna(0)
@@ -256,10 +254,10 @@ class ReachabilityCreator():
                     else:
                         self.ingress_matrix.at[source, target] = 1
                     
-                if source not in self.is_policy_applied:
-                    self.is_policy_applied[source] = 2
-                elif self.is_policy_applied[source] == 1:
-                    self.is_policy_applied[source] = 3
+                    if source not in self.is_policy_applied:
+                        self.is_policy_applied[source] = 2
+                    elif self.is_policy_applied[source] == 1:
+                        self.is_policy_applied[source] = 3
 
     def intersect_egress_and_igress(self): 
         df_reachability = self.egress_matrix * self.ingress_matrix
