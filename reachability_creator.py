@@ -205,8 +205,10 @@ class ReachabilityCreator():
                     #Update Ingress
                     target_components.pop()
                     new_endpoint = "_".join(target_components)
+                    self.update_is_policy_applied(policy_type, new_endpoint)
                     if new_endpoint not in self.is_policy_applied or self.is_policy_applied[new_endpoint] == 1 or self.is_policy_applied[new_endpoint] == 3:
                         self.ingress_matrix[new_endpoint] = 0
+                    
 
                     #Update Egress
                     if new_endpoint not in self.egress_matrix.columns:
@@ -221,10 +223,7 @@ class ReachabilityCreator():
                         self.is_policy_applied[new_endpoint] = 3
 
 
-                if target not in self.is_policy_applied:
-                    self.is_policy_applied[target] = 1
-                elif self.is_policy_applied[target] == 2:
-                    self.is_policy_applied[target] = 3
+                self.update_is_policy_applied(policy_type, target)
                 
         else:
             for source in source_workloads:
@@ -236,6 +235,7 @@ class ReachabilityCreator():
                     while len(target_components) > 2:
                         target_components.pop()
                         new_endpoint = "_".join(target_components)
+                        self.update_is_policy_applied(policy_type, new_endpoint)
                         if new_endpoint not in self.egress_matrix.columns:
                             self.egress_matrix[new_endpoint] = 0
                             for row in self.egress_matrix.index:
@@ -265,12 +265,22 @@ class ReachabilityCreator():
                                 self.ingress_matrix.at[source, col] = 0
                     else:
                         self.ingress_matrix.at[source, target] = 1
-                    
-                    if source not in self.is_policy_applied:
-                        self.is_policy_applied[source] = 2
-                    elif self.is_policy_applied[source] == 1:
-                        self.is_policy_applied[source] = 3
 
+                    self.update_is_policy_applied(policy_type, source)
+
+    def update_is_policy_applied(self, policy_type, component):
+        if policy_type == "Ingress":
+            if component in self.is_policy_applied:
+                if self.is_policy_applied[component] == 2:
+                    self.is_policy_applied[component] = 3
+            else:
+                self.is_policy_applied[component] = 1
+        else:
+            if component in self.is_policy_applied:
+                if self.is_policy_applied[component] == 1:
+                    self.is_policy_applied[component] = 3
+            else:
+                self.is_policy_applied[component] = 2
     def intersect_egress_and_igress(self): 
         df_reachability = self.egress_matrix * self.ingress_matrix
         self.reachability_matrix = df_reachability.to_dict(orient="index")
