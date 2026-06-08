@@ -184,10 +184,13 @@ class ReachabilityCreator():
 
             for target in target_endpoints:
                 for source in source_workloads: 
+                    if source not in self.ingress_matrix.index:
+                        for col in self.ingress_matrix.columns:
+                            if col in self.is_policy_applied and (self.is_policy_applied[col] == 1 or self.is_policy_applied[col] == 3):
+                                self.ingress_matrix.at[source, col] = 0
                     self.ingress_matrix.at[source, target] = 1
                     self.ingress_matrix.loc[source] = self.ingress_matrix.loc[source].fillna(1)
                     self.ingress_matrix[target] = self.ingress_matrix[target].fillna(0)
-
                     #Update Egress
                     if source not in self.egress_matrix.index:
                         self.egress_matrix.loc[source] = 1
@@ -222,6 +225,7 @@ class ReachabilityCreator():
                     self.is_policy_applied[target] = 1
                 elif self.is_policy_applied[target] == 2:
                     self.is_policy_applied[target] = 3
+                
         else:
             for source in source_workloads:
                 #Deny all case
@@ -234,15 +238,23 @@ class ReachabilityCreator():
                         new_endpoint = "_".join(target_components)
                         if new_endpoint not in self.egress_matrix.columns:
                             self.egress_matrix[new_endpoint] = 0
+                            for row in self.egress_matrix.index:
+                                if row not in self.is_policy_applied or self.is_policy_applied[row] == 1:
+                                    self.egress_matrix.at[row, new_endpoint] = 1
+
 
                         #Update Ingress
                         if new_endpoint not in self.ingress_matrix.columns:
                             self.ingress_matrix[new_endpoint] = 1
                     if source not in self.is_policy_applied or self.is_policy_applied[source] == 1:
                         self.egress_matrix.loc[source] = 0
+                    for row in self.egress_matrix.index:
+                        if row in self.is_policy_applied and (self.is_policy_applied[row] == 2 or self.is_policy_applied[row]==3):
+                            self.egress_matrix.at[row, target] = 0
                     self.egress_matrix.at[source, target] = 1
                     self.egress_matrix[target] = self.egress_matrix[target].fillna(1)
                     self.egress_matrix.loc[source] = self.egress_matrix.loc[source].fillna(0)
+
                     #Update Ingress
                     if target not in self.ingress_matrix.columns:
                         self.ingress_matrix[target] = 1
