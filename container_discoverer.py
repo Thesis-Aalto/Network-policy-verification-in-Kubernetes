@@ -91,10 +91,11 @@ class ContainerDiscoverer():
                         for port in container.get("ports"):
                             identity = deployment_name+"-"+name+"-"+str(port["containerPort"])
                             new_container = Container(identity, name, port["containerPort"])
+                            containers.append(new_container)
                     else:
                         identity = deployment_name+"-"+name
                         new_container = Container(identity, name, "")
-                    containers.append(new_container)
+                        containers.append(new_container)
                 new_workload = Workload(deployment_name, parent_kind, labels, namespace, containers)
                 self.workloads.setdefault(namespace, []).append(new_workload)
             elif parent_kind == "Service":
