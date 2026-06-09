@@ -63,8 +63,7 @@ class ReachabilityCreator():
                         targeted_namespaces.append(namespace.name)
 
             if len(targeted_namespaces) == 0:
-                targeted_namespaces.append("default")
-
+                targeted_namespaces.append(policy.namespace)
             if rule.policy_type == "Egress":
                 # Finding Sources
                 if policy.source_labels == {}:
@@ -191,6 +190,7 @@ class ReachabilityCreator():
                     self.ingress_matrix.at[source, target] = 1
                     self.ingress_matrix.loc[source] = self.ingress_matrix.loc[source].fillna(1)
                     self.ingress_matrix[target] = self.ingress_matrix[target].fillna(0)
+
                     #Update Egress
                     if source not in self.egress_matrix.index:
                         self.egress_matrix.loc[source] = 1
@@ -241,11 +241,10 @@ class ReachabilityCreator():
                             for row in self.egress_matrix.index:
                                 if row not in self.is_policy_applied or self.is_policy_applied[row] == 1:
                                     self.egress_matrix.at[row, new_endpoint] = 1
-
-
                         #Update Ingress
                         if new_endpoint not in self.ingress_matrix.columns:
                             self.ingress_matrix[new_endpoint] = 1
+
                     if source not in self.is_policy_applied or self.is_policy_applied[source] == 1:
                         self.egress_matrix.loc[source] = 0
                     for row in self.egress_matrix.index:
@@ -319,7 +318,7 @@ class ReachabilityCreator():
 
 if __name__ == "__main__":
     application_folder_path = "./application/aks-store-demo"
-    policy_folder_path = "./network_policies/example"
+    policy_folder_path = "./network_policies/network.yaml"
     if len(sys.argv) > 2:
         application_folder_path = sys.argv[1]
         policy_folder_path = sys.argv[2] 

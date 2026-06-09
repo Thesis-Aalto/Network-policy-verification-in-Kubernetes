@@ -35,10 +35,9 @@ class PolicyParser():
         self.parse_policies(policy_path)
 
     def parse_policies(self, policy_path):
-        for file in os.listdir(policy_path):
-            with open(policy_path+"/"+file, "r") as f:
-                parsed_yaml = list(yaml.safe_load_all(f))
-                self.get_network_policy(parsed_yaml)
+        with open(policy_path, "r") as f:
+            parsed_yaml = list(yaml.safe_load_all(f))
+            self.get_network_policy(parsed_yaml)
 
     def get_network_policy(self, parsed_yaml):
         for policy in parsed_yaml:
@@ -136,7 +135,7 @@ class PolicyParser():
 
 
 if __name__ == "__main__":
-    application_folder_path = "./network_policies/example"
+    policy_file_path = "./network_policies/example.yaml"
     if len(sys.argv) == 2:
         application_folder_path = sys.argv[1]
     parser = PolicyParser(application_folder_path)
