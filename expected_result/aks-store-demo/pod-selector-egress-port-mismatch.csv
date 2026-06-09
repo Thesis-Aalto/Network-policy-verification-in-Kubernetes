@@ -1,5 +1,5 @@
-database-ns,backend-ns,frontend-ns,database-ns_datastore_5555_TCP,database-ns_datastore_5555,database-ns_datastore
+database-ns,backend-ns,frontend-ns,backend-ns_makeline-service_9999,backend-ns_makeline-service,backend-ns_makeline-service_9999_TCP
 database-ns,1.0,1.0,1.0,1.0,1.0,1.0
 frontend-ns,1.0,1.0,1.0,1.0,1.0,1.0
 backend-ns,1.0,1.0,1.0,1.0,1.0,1.0
-backend-ns_order-service,0.0,0.0,0.0,1.0,0.0,0.0
+backend-ns_order-service,0.0,0.0,0.0,0.0,0.0,1.0

@@ -13,7 +13,7 @@ spec:
   - to:
     - podSelector:
         matchLabels:
-          app: ratings
+          app: details
     ports:
     - protocol: TCP
-      port: 5555 # Port mismatch: ratings does not use port 5555
+      port: 5555 # Port mismatch: details listens on port 9080

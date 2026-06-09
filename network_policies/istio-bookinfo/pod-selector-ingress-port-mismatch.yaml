@@ -13,7 +13,7 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app: productpage
+          app: reviews
     ports:
     - protocol: TCP
       port: 8080 # Port mismatch: details pod runs on port 9080

@@ -14,9 +14,9 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app: productpage
+          app: details
   egress:
   - to:
     - podSelector:
         matchLabels:
-          app: ratings
+          app: details

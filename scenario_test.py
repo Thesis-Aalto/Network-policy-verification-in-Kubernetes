@@ -40,7 +40,8 @@ class ScenarioTest:
 
                test_file = policy_file.split(".")[0]+".csv"
                expected_matrix = pd.read_csv(self.result_folder_path+"/"+testbed+"/"+test_file, index_col=0).astype(float)
-               result=expected_matrix.equals(reachability_matrix)
+               aligned_matrix = reachability_matrix.reindex(index=expected_matrix.index, columns=expected_matrix.columns)
+               result=expected_matrix.equals(aligned_matrix)
                if result==True:
                    print("Test result: CORRECT")
                    correct_counter += 1
@@ -53,7 +54,7 @@ class ScenarioTest:
                print("---------------------------------")
            print("Total Results")
            print("---------------------------------")
-           print(f"Number of Tests: {total_counter}\nNumber of Correct: {correct_counter}\nSuccess Percentage: {correct_counter/total_counter}")
+           print(f"Number of Tests: {total_counter}\nNumber of Correct: {correct_counter}\nSuccess Percentage: {100*correct_counter/total_counter}")
            print("---------------------------------")
            print("---------------------------------")
                 

@@ -13,4 +13,4 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app: productpage
+          app: reviews
