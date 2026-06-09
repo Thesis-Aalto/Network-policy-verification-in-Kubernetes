@@ -1,0 +1,6 @@
+,database-ns,backend-ns,frontend-ns,backend-ns_order-service,backend-ns_makeline-service,backend-ns_ClusterIP-makeline-service,database-ns_mongodb,database-ns_rabbitmq,backend-ns_product-service,frontend-ns_store-front,frontend-ns_store-admin,frontend-ns_virtual-customer,frontend-ns_virtual-worker,backend-ns_ClusterIP-product-service
+database-ns,1.0,1.0,1.0,1.0,0.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+backend-ns,1.0,1.0,1.0,1.0,0.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+frontend-ns,1.0,1.0,1.0,1.0,0.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+backend-ns_order-service,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+backend-ns_makeline-service,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0

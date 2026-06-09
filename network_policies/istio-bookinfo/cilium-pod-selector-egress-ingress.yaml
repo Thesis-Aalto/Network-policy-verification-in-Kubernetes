@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-pod-selector-egress-ingress
+  namespace: bookinfo-services-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: reviews
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: details
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: details
