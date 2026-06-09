@@ -1,0 +1,4 @@
+database-ns,backend-ns,frontend-ns,database-ns_mongodb_27017_TCP,database-ns_mongodb_27017,database-ns_mongodb,database-ns_ClusterIP-mongodb_27017_TCP,database-ns_ClusterIP-mongodb_27017,database-ns_ClusterIP-mongodb
+database-ns,1,1,1,0,0,0,0,0,0
+backend-ns,1,1,1,1,0,0,1,0,0
+frontend-ns,1,1,1,0,0,0,0,0,0

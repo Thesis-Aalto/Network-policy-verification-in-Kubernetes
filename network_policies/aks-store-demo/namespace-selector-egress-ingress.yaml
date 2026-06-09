@@ -4,7 +4,7 @@ metadata:
   name: namespace-selector-ingress-egress
   namespace: backend-ns
 spec:
-  podSelector: {} # Applies to all workloads inside backend-ns
+  podSelector: {}
   policyTypes:
   - Ingress
   - Egress

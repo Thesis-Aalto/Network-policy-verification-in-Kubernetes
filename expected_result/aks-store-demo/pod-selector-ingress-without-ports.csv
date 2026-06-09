@@ -1,0 +1,5 @@
+database-ns,backend-ns,frontend-ns,backend-ns_makeline-service,backend-ns_ClusterIP-makeline-service
+database-ns,1,1,1,0,0
+backend-ns,1,1,1,0,0
+frontend-ns,1,1,1,0,0
+backend-ns_order-service,1,1,1,1,1

@@ -6,12 +6,11 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: makeline-service # The destination pod receiving the traffic
+      app: makeline-service
   policyTypes:
   - Ingress
   ingress:
   - from:
     - podSelector:
         matchLabels:
-          app: order-service # The allowed source pod
-      # The 'ports' block is omitted on purpose to allow traffic on all ports
+          app: order-service

@@ -21,7 +21,7 @@ class ReachabilityCreator():
         self.egress_matrix = self.initialize_matrix()
         # 1 Ingress, 2 Egress, 3 Both
         self.is_policy_applied = {}
-        self.reachability_matrix = {}
+        self.reachability_matrix = pd.DataFrame()
     
     def create_reachability_matrix(self):
         for policy in self.network_policies:
@@ -170,6 +170,8 @@ class ReachabilityCreator():
             self.fill_matrix(sources, targets, rule.policy_type, policy.namespace)
 
     ###TODO: Fix port mismatch situation
+    ###TODO: NamespaceSelector case is broken
+    ###TODO: Deny all needs to be fixed
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace):
         if policy_type == "Ingress":
             #Deny all case
@@ -283,38 +285,16 @@ class ReachabilityCreator():
 
 
     def intersect_egress_and_igress(self): 
-        df_reachability = self.egress_matrix * self.ingress_matrix
-        self.reachability_matrix = df_reachability.to_dict(orient="index")
+        self.reachability_matrix = self.egress_matrix * self.ingress_matrix
+
 
     
     def print_reachability_table(self):
-        if not self.reachability_matrix:
+        if self.reachability_matrix.empty:
             print("Empty reachability matrix.")
             return
 
-        sources = list(self.reachability_matrix.keys())
-        targets = list(next(iter(self.reachability_matrix.values())).keys())
-
-        col_w = max(max(len(s) for s in sources), max(len(t) for t in targets), 8) + 2
-
-        SYMBOLS = {0: "✗", 1: "✓", 2: "?"}
-        header = f"{'':>{col_w}} |" + "".join(f" {t:^{col_w}} |" for t in targets)
-        separator = "-" * len(header)
-
-        print(separator)
-        print(header)
-        print(separator)
-
-        for source in sources:
-            row = f"{source:>{col_w}} |"
-            for target in targets:
-                val = self.reachability_matrix[source].get(target, 0)
-                symbol = SYMBOLS.get(val, str(val))
-                row += f" {symbol:^{col_w}} |"
-            print(row)
-
-        print(separator)
-        print(f"\nLegend:  ✓ = allowed (1)   ? = maybe (2)   ✗ = denied (0)")
+        print(self.reachability_matrix)
 
 if __name__ == "__main__":
     application_folder_path = "./application/aks-store-demo"

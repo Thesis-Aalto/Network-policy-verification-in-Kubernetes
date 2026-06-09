@@ -1,0 +1,7 @@
+bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-data-ns_ratings-v1_5555_TCP,bookinfo-data-ns_ratings-v1_9080_TCP,bookinfo-data-ns_ratings-v1
+bookinfo-frontend-ns,1,1,1,1,1,1
+bookinfo-services-ns,1,1,1,1,1,1
+bookinfo-data-ns,1,1,1,1,1,1
+bookinfo-services-ns_reviews-v1,0,0,0,1,0,0
+bookinfo-services-ns_reviews-v2,0,0,0,1,0,0
+bookinfo-services-ns_reviews-v3,0,0,0,1,0,0

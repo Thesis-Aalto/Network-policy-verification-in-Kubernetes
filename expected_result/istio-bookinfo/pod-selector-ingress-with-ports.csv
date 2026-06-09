@@ -1,0 +1,5 @@
+bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-services-ns_details-v1_9080_TCP,bookinfo-services-ns_details-v1_9080,bookinfo-services-ns_details-v1,bookinfo-services-ns_ClusterIP-details_9080_TCP,bookinfo-services-ns_ClusterIP-details_9080
+bookinfo-frontend-ns,1,1,1,0,0,0,0,0
+bookinfo-frontend-ns_productpage-v1,1,1,1,1,0,0,1,0
+bookinfo-services-ns,1,1,1,0,0,0,0,0
+bookinfo-data-ns,1,1,1,0,0,0,0,0
