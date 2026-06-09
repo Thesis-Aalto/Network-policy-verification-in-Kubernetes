@@ -58,16 +58,26 @@ class ReachabilityCreator():
     def _labels_match(self, labels, selector):
         return all(key in labels and labels[key] == value for key, value in selector.items())
 
+    def _ingress_target_namespaces(self, policy):
+        if policy.endpoint_namespaces:
+            return policy.endpoint_namespaces
+        if policy.is_clusterwide:
+            return self.all_namespace_names()
+        return [policy.namespace]
+
     def apply_network_policy(self, policy):
         # policyTypes with no ingress/egress rules means deny-all for selected pods.
         if len(policy.rules) == 0:
             sources = {}
+            source_namespaces = self.all_namespace_names() if policy.is_clusterwide else [policy.namespace]
             if policy.source_labels == {}:
-                sources[policy.namespace] = 1
+                for namespace_name in source_namespaces:
+                    sources[namespace_name] = 1
             else:
-                for workload in self.workloads.get(policy.namespace, []):
-                    if self._labels_match(workload.labels, policy.source_labels):
-                        sources[f"{workload.namespace}_{workload.name}"] = 1
+                for namespace_name in source_namespaces:
+                    for workload in self.workloads.get(namespace_name, []):
+                        if self._labels_match(workload.labels, policy.source_labels):
+                            sources[f"{workload.namespace}_{workload.name}"] = 1
             for policy_type in policy.policy_types:
                 self.fill_matrix(sources, {}, policy_type, policy.namespace)
             return
@@ -83,17 +93,23 @@ class ReachabilityCreator():
                     for namespace in self.namespaces
                     if self._labels_match(namespace.labels, rule.namespace_label)
                 ]
+            elif policy.is_clusterwide:
+                targeted_namespaces = self.all_namespace_names()
             else:
                 # podSelector without namespaceSelector is scoped to the policy namespace.
                 targeted_namespaces = [policy.namespace]
 
+            source_namespaces = self.all_namespace_names() if policy.is_clusterwide else [policy.namespace]
+
             if rule.policy_type == "Egress":
                 if policy.source_labels == {}:
-                    sources[policy.namespace] = 1
+                    for namespace_name in source_namespaces:
+                        sources[namespace_name] = 1
                 else:
-                    for workload in self.workloads.get(policy.namespace, []):
-                        if self._labels_match(workload.labels, policy.source_labels):
-                            sources[f"{workload.namespace}_{workload.name}"] = 1
+                    for namespace_name in source_namespaces:
+                        for workload in self.workloads.get(namespace_name, []):
+                            if self._labels_match(workload.labels, policy.source_labels):
+                                sources[f"{workload.namespace}_{workload.name}"] = 1
 
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
@@ -126,16 +142,25 @@ class ReachabilityCreator():
                                     sources[f"{workload.namespace}_{workload.name}"] = 1
 
                 # For ingress, policy.source_labels (podSelector) defines the protected targets.
+                ingress_target_namespaces = self._ingress_target_namespaces(policy)
                 if policy.source_labels == {}:
                     if len(rule.ports) == 0:
-                        targets[policy.namespace] = 1
+                        for namespace_name in ingress_target_namespaces:
+                            targets[namespace_name] = 1
                     else:
-                        for port in rule.ports:
-                            targets[f"{policy.namespace}_{port.portNumber}_{port.protocol}"] = 1
+                        for namespace_name in ingress_target_namespaces:
+                            for port in rule.ports:
+                                targets[f"{namespace_name}_{port.portNumber}_{port.protocol}"] = 1
                 elif len(rule.ports) == 0:
-                    self._add_label_targets(targets, [policy.namespace], policy.source_labels, with_ports=False, policy_namespace=policy.namespace)
+                    self._add_label_targets(
+                        targets, ingress_target_namespaces, policy.source_labels,
+                        with_ports=False, policy_namespace=policy.namespace,
+                    )
                 else:
-                    self._add_label_targets(targets, [policy.namespace], policy.source_labels, with_ports=True, ports=rule.ports, policy_namespace=policy.namespace)
+                    self._add_label_targets(
+                        targets, ingress_target_namespaces, policy.source_labels,
+                        with_ports=True, ports=rule.ports, policy_namespace=policy.namespace,
+                    )
 
             # Pod/workload endpoints must exist in both matrices before multiplication.
             self._ensure_endpoint_columns(sources.keys())
