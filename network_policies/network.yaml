@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-core-to-services
+  namespace: store-services
+spec:
+  podSelector: {} # Applies to all pods in store-services
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: store-core
+    ports:
+    - protocol: TCP
+      port: 3000 # order-service
+    - protocol: TCP
+      port: 3001 # makeline-service
+    - protocol: TCP
+      port: 3002 # product-service

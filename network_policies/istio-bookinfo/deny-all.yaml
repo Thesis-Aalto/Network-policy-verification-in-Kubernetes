@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-all
-  namespace: default
+  name: deny-all
+  namespace: bookinfo-services-ns
 spec:
   podSelector: {}
   policyTypes:
