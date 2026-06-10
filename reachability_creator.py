@@ -162,8 +162,7 @@ class ReachabilityCreator():
                         with_ports=True, ports=rule.ports, policy_namespace=policy.namespace,
                     )
 
-            # Pod/workload endpoints must exist in both matrices before multiplication.
-            self._ensure_endpoint_columns(sources.keys())
+            self._ensure_endpoint_columns(targets.keys())
             if rule.policy_type == "Egress" and policy.source_labels != {}:
                 for namespace, workloads in self.workloads.items():
                     for workload in workloads:
