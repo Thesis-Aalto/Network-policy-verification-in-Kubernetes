@@ -1,0 +1,21 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ingress-deny-vs-allow
+  namespace: bookinfo-data-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ratings
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: productpage
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        app: productpage
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP

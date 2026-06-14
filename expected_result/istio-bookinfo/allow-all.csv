@@ -1,4 +1,4 @@
-bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns
+,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns
 bookinfo-frontend-ns,1,1,1
 bookinfo-services-ns,1,1,1
 bookinfo-data-ns,1,1,1

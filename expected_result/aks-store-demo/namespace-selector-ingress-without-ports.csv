@@ -1,4 +1,4 @@
-database-ns,backend-ns,frontend-ns
+,database-ns,backend-ns,frontend-ns
 database-ns,0,1,1
 backend-ns,1,1,1
 frontend-ns,0,1,1

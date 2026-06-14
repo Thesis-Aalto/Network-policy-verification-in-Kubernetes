@@ -1,0 +1,25 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ingress-deny
+  namespace: database-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mongodb
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: order-service
+    toPorts:
+    - ports:
+      - port: "27017"
+        protocol: TCP
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        app: makeline-service
+    toPorts:
+    - ports:
+      - port: "27017"
+        protocol: TCP

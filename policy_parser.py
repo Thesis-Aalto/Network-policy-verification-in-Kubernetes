@@ -12,7 +12,7 @@ CILIUM_NAMESPACE_LABEL_PREFIX = "io.cilium.k8s.namespace.labels."
 
 class Policy():
     def __init__(self, name, namespace, source_labels, rules, policy_types, is_clusterwide=False,
-                 endpoint_namespaces=None):
+                 endpoint_namespaces=None, is_cilium=False):
         self.name = name
         self.namespace = namespace
         self.source_labels = source_labels
@@ -20,13 +20,15 @@ class Policy():
         self.policy_types = policy_types
         self.is_clusterwide = is_clusterwide
         self.endpoint_namespaces = endpoint_namespaces or []
+        self.is_cilium = is_cilium
 
 class PolicyRule():
-    def __init__(self, policy_type, target_labels, namespace_label, ports):
+    def __init__(self, policy_type, target_labels, namespace_label, ports, is_deny=False):
         self.policy_type = policy_type
         self.target_labels = target_labels
         self.namespace_label = namespace_label
         self.ports = ports
+        self.is_deny = is_deny
 
 class Port():
     def __init__(self, portNumber, protocol):
@@ -63,32 +65,41 @@ class PolicyParser():
                 source_labels = spec.get("podSelector", {}).get("matchLabels") or {}
             rules = []
             policy_types = []
-            for policy_type in ["Ingress", "Egress"]:
+            rule_sections = [
+                ("Ingress", "ingress", False),
+                ("Egress", "egress", False),
+                ("Ingress", "ingressDeny", True),
+                ("Egress", "egressDeny", True),
+            ]
+            for policy_type, section_name, is_deny in rule_sections:
                 if is_cilium:
-                    if spec.get(policy_type.lower()) is None:
+                    if spec.get(section_name) is None:
+                        continue
+                    if policy_type not in policy_types:
+                        policy_types.append(policy_type)
+                else:
+                    if is_deny:
+                        continue
+                    if policy_type not in spec.get("policyTypes", []):
                         continue
                     policy_types.append(policy_type)
-                elif policy_type not in spec.get("policyTypes", []):
-                    continue
-                else:
-                    policy_types.append(policy_type)
-                for rule in spec.get(policy_type.lower()) or []:
+                for rule in spec.get(section_name) or []:
                     all_targets = self.get_target_labels(policy_type, rule, is_cilium)
                     ports = self.get_rule_ports(rule, is_cilium)
                     for target_labels, namespace_label in all_targets:
-                        new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports)
+                        new_rule = PolicyRule(policy_type, target_labels, namespace_label, ports, is_deny)
                         rules.append(new_rule)
                     if rule == {}:
-                        new_rule = PolicyRule(policy_type, {}, {}, [])
+                        new_rule = PolicyRule(policy_type, {}, {}, [], is_deny)
                         rules.append(new_rule)
                     elif len(all_targets) == 0:
-                        new_rule = PolicyRule(policy_type, {}, {}, ports)
+                        new_rule = PolicyRule(policy_type, {}, {}, ports, is_deny)
                         rules.append(new_rule)
             if is_cilium and not policy_types:
                 policy_types = ["Ingress", "Egress"]
 
             new_network_policy = Policy(
-                name, namespace, source_labels, rules, policy_types, is_clusterwide, endpoint_namespaces)
+                name, namespace, source_labels, rules, policy_types, is_clusterwide, endpoint_namespaces, is_cilium)
             self.network_policies.append(new_network_policy)
 
     def get_target_labels(self, policy_type, rule, is_cilium=False):
@@ -144,7 +155,7 @@ class PolicyParser():
             print(f"Policy Name: {policy.name}\nPolicy Namespace: {policy.namespace}\nSource Labels: {policy.source_labels}\nPolicy Types: {policy.policy_types}")
             print("Rules:")
             for rule in policy.rules:
-                print(f"\tPolicy Type: {rule.policy_type}\n\tTarget Labels: {rule.target_labels}\n\tNamespace Label: {rule.namespace_label}")
+                print(f"\tPolicy Type: {rule.policy_type}\n\tIs Deny: {rule.is_deny}\n\tTarget Labels: {rule.target_labels}\n\tNamespace Label: {rule.namespace_label}")
                 print("\tPorts")
                 for port in rule.ports:
                     print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")

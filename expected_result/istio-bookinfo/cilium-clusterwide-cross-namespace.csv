@@ -1,5 +1,5 @@
-,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-services-ns_reviews-v1_9080_TCP,bookinfo-services-ns_reviews-v2_9080_TCP,bookinfo-services-ns_reviews-v3_9080_TCP,bookinfo-services-ns_reviews-v1_9080,bookinfo-services-ns_reviews-v1,bookinfo-services-ns_reviews-v2_9080,bookinfo-services-ns_reviews-v2,bookinfo-services-ns_reviews-v3_9080,bookinfo-services-ns_reviews-v3
-bookinfo-frontend-ns,1.0,1.0,1.0,0,0,0,0,0,0,0,0,0
-bookinfo-services-ns,1.0,1.0,1.0,0,0,0,0,0,0,0,0,0
-bookinfo-data-ns,1.0,1.0,1.0,0,0,0,0,0,0,0,0,0
-bookinfo-frontend-ns_productpage-v1,1.0,1.0,1.0,1,1,1,0,0,0,0,0,0
+,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,*_reviews-v1_9080_TCP,*_reviews-v2_9080_TCP,*_reviews-v3_9080_TCP,*_ClusterIP-reviews_9080_TCP,*_reviews-v1_9080_*,*_reviews-v1_*_*,*_reviews-v2_9080_*,*_reviews-v2_*_*,*_reviews-v3_9080_*,*_reviews-v3_*_*,*_ClusterIP-reviews_9080_*,*_ClusterIP-reviews_*_*
+bookinfo-frontend-ns,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+bookinfo-services-ns,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+bookinfo-data-ns,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+*_productpage-v1_*_*,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0

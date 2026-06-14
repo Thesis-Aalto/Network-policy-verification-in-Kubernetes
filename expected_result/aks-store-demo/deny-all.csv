@@ -1,4 +1,6 @@
-database-ns,backend-ns,frontend-ns
+,database-ns,backend-ns,frontend-ns
 database-ns,0,0,0
 backend-ns,0,1,1
 frontend-ns,0,1,1
+database-ns_mongodb_*_*,0,0,0
+database-ns_rabbitmq_*_*,0,0,0
