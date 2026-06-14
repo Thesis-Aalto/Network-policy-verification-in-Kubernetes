@@ -1,0 +1,22 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: calico-egress-deny
+  namespace: bookinfo-frontend-ns
+spec:
+  selector: app == 'productpage'
+  types:
+  - Egress
+  egress:
+  - action: Allow
+    protocol: TCP
+    destination:
+      selector: app == 'reviews'
+      ports:
+      - 9080
+  - action: Deny
+    protocol: TCP
+    destination:
+      selector: app == 'ratings'
+      ports:
+      - 9080

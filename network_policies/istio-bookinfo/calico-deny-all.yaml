@@ -1,0 +1,12 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: calico-deny-all
+  namespace: bookinfo-data-ns
+spec:
+  selector: all()
+  types:
+  - Ingress
+  - Egress
+  ingress: []
+  egress: []

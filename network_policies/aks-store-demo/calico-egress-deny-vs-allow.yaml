@@ -1,0 +1,19 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: calico-egress-deny-vs-allow
+  namespace: backend-ns
+spec:
+  selector: app == 'makeline-service'
+  types:
+  - Egress
+  egress:
+  - action: Allow
+    destination:
+      selector: app == 'mongodb'
+  - action: Deny
+    protocol: TCP
+    destination:
+      selector: app == 'mongodb'
+      ports:
+      - 27017

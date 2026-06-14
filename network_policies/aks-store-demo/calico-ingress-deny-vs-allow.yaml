@@ -1,0 +1,20 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: calico-ingress-deny-vs-allow
+  namespace: database-ns
+spec:
+  selector: app == 'mongodb'
+  types:
+  - Ingress
+  ingress:
+  - action: Allow
+    source:
+      selector: app == 'makeline-service'
+  - action: Deny
+    protocol: TCP
+    source:
+      selector: app == 'makeline-service'
+    destination:
+      ports:
+      - 27017

@@ -1,0 +1,20 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: calico-ingress-deny-vs-allow
+  namespace: bookinfo-data-ns
+spec:
+  selector: app == 'ratings'
+  types:
+  - Ingress
+  ingress:
+  - action: Allow
+    source:
+      selector: app == 'productpage'
+  - action: Deny
+    protocol: TCP
+    source:
+      selector: app == 'productpage'
+    destination:
+      ports:
+      - 9080

@@ -18,8 +18,8 @@ class ReachabilityCreator():
 
     Rows are traffic sources and columns are destinations. Values are 1 (allowed) or 0 (denied).
     Endpoints use fixed format namespace_workload_port_protocol with '*' wildcards, e.g.
-    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. Cilium clusterwide policies use
-    *_workload_port_protocol where the first wildcard is the namespace.
+    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. Cilium clusterwide and Calico
+    GlobalNetworkPolicy use *_workload_port_protocol where the first wildcard is the namespace.
 
     Ingress and egress are tracked separately, then combined with element-wise multiplication:
     reachability = egress_matrix * ingress_matrix
@@ -195,7 +195,7 @@ class ReachabilityCreator():
                     for namespace in self.namespaces
                     if self._labels_match(namespace.labels, rule.namespace_label)
                 ]
-            elif clusterwide or policy.is_cilium:
+            elif clusterwide or policy.uses_cross_namespace_peers():
                 targeted_namespaces = self.all_namespace_names()
             else:
                 targeted_namespaces = [policy.namespace]
