@@ -10,6 +10,8 @@ pd.set_option('display.width', 2000)
 WILDCARD = "*"
 KNOWN_PROTOCOLS = frozenset({"TCP", "UDP", "SCTP"})
 ENDPOINT_SEP = "_"
+QUERY_TIER_PRIORITY = ("cilium_deny", "calico_deny", "policy_allow", "policy_deny", "default")
+QUERY_DENY_TIERS = frozenset({"cilium_deny", "calico_deny", "policy_deny"})
 
 
 class ReachabilityCreator():
@@ -23,9 +25,14 @@ class ReachabilityCreator():
 
     Ingress and egress are tracked separately, then combined with element-wise multiplication:
     reachability = egress_matrix * ingress_matrix
+
+    is_policy_applied tracks endpoints affected by policies:
+      1 = ingress (destination/column), 2 = egress (source/row), 3 = both
+    engine_deny_cells maps (source, destination) to "cilium" or "calico" for deny priority.
     """
 
     def __init__(self, services, workloads, namespaces, network_policies):
+        """Initialize matrices and policy-tracking state from cluster topology and policies."""
         self.services = services
         self.workloads = workloads
         self.namespaces = namespaces
@@ -34,9 +41,11 @@ class ReachabilityCreator():
         self.ingress_matrix = self.initialize_matrix()
         self.egress_matrix = self.initialize_matrix()
         self.is_policy_applied = {}
+        self.engine_deny_cells = {}
         self.reachability_matrix = pd.DataFrame()
 
     def create_reachability_matrix(self):
+        """Apply all policies in three phases (allow, default, deny) and build the final matrix."""
         for policy in self.network_policies:
             self.apply_network_policy(policy, phase="allow")
         for policy in self.network_policies:
@@ -48,6 +57,7 @@ class ReachabilityCreator():
         return self.reachability_matrix
 
     def initialize_matrix(self):
+        """Create a namespace-to-namespace matrix with all cells set to allowed (1)."""
         new_matrix = pd.DataFrame()
         for source_namespace in self.namespaces:
             for target_namespace in self.namespaces:
@@ -55,15 +65,19 @@ class ReachabilityCreator():
         return new_matrix
 
     def all_namespace_names(self):
+        """Return the list of all namespace names in the cluster."""
         return [namespace.name for namespace in self.namespaces]
 
     def is_allow_all_rule(self, rule):
+        """Return True when a rule has no selectors and no ports (matches everything)."""
         return rule.target_labels == {} and rule.namespace_label == {} and len(rule.ports) == 0
 
     def _labels_match(self, labels, selector):
+        """Return True when every key/value in selector is present and equal in labels."""
         return all(key in labels and labels[key] == value for key, value in selector.items())
 
     def _ingress_target_namespaces(self, policy):
+        """Return namespaces whose pods are protected by an ingress policy."""
         if policy.endpoint_namespaces:
             return policy.endpoint_namespaces
         if policy.is_clusterwide:
@@ -71,6 +85,7 @@ class ReachabilityCreator():
         return [policy.namespace]
 
     def _match_namespace(self, endpoint):
+        """Extract the namespace prefix from an endpoint string (longest matching namespace name)."""
         if endpoint == WILDCARD or endpoint.startswith(f"{WILDCARD}{ENDPOINT_SEP}"):
             return WILDCARD
         namespace_names = self.all_namespace_names()
@@ -83,9 +98,11 @@ class ReachabilityCreator():
         return max(matches, key=len)
 
     def _endpoint_namespace(self, namespace, clusterwide=False):
+        """Return '*' for clusterwide policies, otherwise the real namespace name."""
         return WILDCARD if clusterwide else namespace
 
     def _encode_endpoint(self, namespace, workload=WILDCARD, port=WILDCARD, protocol=WILDCARD, collapse_namespace=True):
+        """Build an endpoint string from namespace, workload, port, and protocol components."""
         workload = str(workload) if workload != WILDCARD else WILDCARD
         port = str(port) if port != WILDCARD else WILDCARD
         if collapse_namespace and workload == WILDCARD and port == WILDCARD and protocol == WILDCARD:
@@ -93,6 +110,7 @@ class ReachabilityCreator():
         return ENDPOINT_SEP.join([namespace, workload, port, protocol])
 
     def _parse_endpoint(self, endpoint):
+        """Split an endpoint string into (namespace, workload, port, protocol) tuple."""
         namespace_names = self.all_namespace_names()
         if endpoint in namespace_names:
             return endpoint, WILDCARD, WILDCARD, WILDCARD
@@ -117,6 +135,10 @@ class ReachabilityCreator():
         return namespace, workload, port, protocol
 
     def _endpoint_parent_chain(self, endpoint_name):
+        """
+        Return broader parent endpoints by wildcarding protocol, port, then workload.
+        Stops before bare namespace when the original endpoint had a workload (pod selector).
+        """
         namespace, workload, port, protocol = self._parse_endpoint(endpoint_name)
         had_workload = workload != WILDCARD
         parents = []
@@ -149,18 +171,25 @@ class ReachabilityCreator():
         return parents
 
     def _workload_endpoint(self, namespace, workload_name, clusterwide=False):
+        """Encode a workload-level endpoint: namespace_workload_*_*."""
         return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), workload_name)
 
     def _service_endpoint(self, namespace, service_identity, port=None, protocol=None, clusterwide=False):
+        """Encode a service endpoint, with or without port and protocol."""
         endpoint_namespace = self._endpoint_namespace(namespace, clusterwide)
         if port is None:
             return self._encode_endpoint(endpoint_namespace, service_identity)
         return self._encode_endpoint(endpoint_namespace, service_identity, port, protocol)
 
     def _namespace_port_endpoint(self, namespace, port, protocol, clusterwide=False):
+        """Encode a namespace-level port endpoint: namespace_*_port_protocol."""
         return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), WILDCARD, port.portNumber, port.protocol)
 
     def apply_network_policy(self, policy, phase="allow"):
+        """
+        Apply one policy in a given phase (allow, default, or deny).
+        Resolves sources and targets from selectors, then updates ingress/egress matrices.
+        """
         clusterwide = policy.is_clusterwide
         if phase == "default":
             sources = {}
@@ -265,11 +294,16 @@ class ReachabilityCreator():
 
             self._ensure_endpoint_columns(targets.keys())
             if rule.is_deny:
-                self.fill_matrix_deny(sources, targets, rule.policy_type, policy.namespace)
+                self.fill_matrix_deny(
+                    sources, targets, rule.policy_type, policy.namespace, policy=policy,
+                )
             else:
-                self.fill_matrix(sources, targets, rule.policy_type, policy.namespace, allow_all=allow_all)
+                self.fill_matrix(
+                    sources, targets, rule.policy_type, policy.namespace, allow_all=allow_all,
+                )
 
     def _ensure_container_port_columns(self, namespaces, label_selector, ports, clusterwide=False):
+        """Add matrix columns for container ports that differ from the rule's service port."""
         for namespace in namespaces:
             for workload in self.workloads.get(namespace, []):
                 if not self._labels_match(workload.labels, label_selector):
@@ -286,6 +320,7 @@ class ReachabilityCreator():
                             self.ingress_matrix[column] = 1
 
     def _ensure_endpoint_columns(self, endpoints):
+        """Add missing endpoint columns to both matrices, initialized to allowed (1)."""
         for endpoint in endpoints:
             if endpoint in self.all_namespace_names():
                 continue
@@ -295,6 +330,7 @@ class ReachabilityCreator():
                 self.ingress_matrix[endpoint] = 1
 
     def _add_label_targets(self, targets, namespaces, label_selector, with_ports=False, ports=None, clusterwide=False):
+        """Add workload and service endpoints matching a label selector to the targets dict."""
         for namespace in namespaces:
             endpoint_namespace = self._endpoint_namespace(namespace, clusterwide)
             for workload in self.workloads.get(namespace, []):
@@ -317,6 +353,7 @@ class ReachabilityCreator():
                         targets[self._service_endpoint(namespace, service.identity, clusterwide=clusterwide)] = 1
 
     def _ensure_ingress_row(self, source):
+        """Add a source row to the ingress matrix, blocking ingress-protected columns."""
         if source not in self.ingress_matrix.index:
             self.ingress_matrix.loc[source] = 1
             for col in self.ingress_matrix.columns:
@@ -324,6 +361,7 @@ class ReachabilityCreator():
                     self.ingress_matrix.at[source, col] = 0
 
     def _ensure_egress_row(self, source):
+        """Add a source row to the egress matrix, blocking ingress-protected columns."""
         if source not in self.egress_matrix.index:
             self.egress_matrix.loc[source] = 1
             for col in self.egress_matrix.columns:
@@ -331,6 +369,7 @@ class ReachabilityCreator():
                     self.egress_matrix.at[source, col] = 0
 
     def _ensure_egress_column(self, target):
+        """Add a target column to the egress matrix, blocking egress-restricted rows."""
         if target not in self.egress_matrix.columns:
             self.egress_matrix[target] = 1
             for row in self.egress_matrix.index:
@@ -338,6 +377,10 @@ class ReachabilityCreator():
                     self.egress_matrix.at[row, target] = 0
 
     def _apply_parent_endpoints(self, endpoint_name, policy_type, restricted_source=None):
+        """
+        Propagate policy effects to broader parent endpoints (wildcard aggregation).
+        For ingress: parent columns are denied. For egress: restricted source is blocked.
+        """
         for new_endpoint in self._endpoint_parent_chain(endpoint_name):
             self.update_is_policy_applied(policy_type, new_endpoint)
             if policy_type == "Ingress":
@@ -363,7 +406,20 @@ class ReachabilityCreator():
                 if new_endpoint not in self.ingress_matrix.columns:
                     self.ingress_matrix[new_endpoint] = 1
 
+    def _mark_engine_deny_cell(self, policy, source, target):
+        """Record a Cilium or Calico deny cell for query-time priority resolution."""
+        if policy is None:
+            return
+        if policy.is_cilium:
+            self.engine_deny_cells[(source, target)] = "cilium"
+        elif policy.is_calico:
+            self.engine_deny_cells[(source, target)] = "calico"
+
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace, allow_all=False):
+        """
+        Apply an allow rule to the ingress or egress matrix.
+        Sets allowed cells to 1, denies everything else in the affected row/column.
+        """
         if policy_type == "Ingress":
             if len(target_endpoints) == 0:
                 if policy_namespace not in self.ingress_matrix.columns:
@@ -433,7 +489,8 @@ class ReachabilityCreator():
 
                 self.update_is_policy_applied(policy_type, source)
 
-    def fill_matrix_deny(self, source_workloads, target_endpoints, policy_type, policy_namespace):
+    def fill_matrix_deny(self, source_workloads, target_endpoints, policy_type, policy_namespace, policy=None):
+        """Apply a deny rule (Cilium/Calico egressDeny or ingressDeny) to the matrix."""
         if policy_type == "Ingress":
             if len(target_endpoints) == 0:
                 if policy_namespace not in self.ingress_matrix.columns:
@@ -448,6 +505,7 @@ class ReachabilityCreator():
                     self._ensure_ingress_row(source)
                     self._ensure_egress_row(source)
                     self.ingress_matrix.at[source, target] = 0
+                    self._mark_engine_deny_cell(policy, source, target)
         else:
             for source in source_workloads:
                 self._ensure_egress_row(source)
@@ -459,8 +517,13 @@ class ReachabilityCreator():
                     if target not in self.egress_matrix.columns:
                         self.egress_matrix[target] = 1
                     self.egress_matrix.at[source, target] = 0
+                    self._mark_engine_deny_cell(policy, source, target)
 
     def update_is_policy_applied(self, policy_type, component):
+        """
+        Mark an endpoint as policy-affected in is_policy_applied.
+        1 = ingress, 2 = egress, 3 = both.
+        """
         if policy_type == "Ingress":
             if component in self.is_policy_applied:
                 if self.is_policy_applied[component] == 2:
@@ -475,9 +538,118 @@ class ReachabilityCreator():
                 self.is_policy_applied[component] = 2
 
     def intersect_egress_and_igress(self):
+        """Combine ingress and egress matrices: reachability = egress * ingress."""
         self.reachability_matrix = self.egress_matrix * self.ingress_matrix
 
+    def _port_matches(self, ep_port, port, protocol=None, ep_protocol=WILDCARD):
+        """Return True when an endpoint port/protocol matches the query."""
+        if port is None:
+            return ep_port == WILDCARD
+        if ep_port != str(port) and ep_port != WILDCARD:
+            return False
+        if protocol is None:
+            return True
+        return ep_protocol == protocol or ep_protocol == WILDCARD
+
+    def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None):
+        """Return True when a matrix row/column matches the query using wildcards."""
+        if endpoint in self.all_namespace_names():
+            return endpoint == namespace
+
+        ep_ns, ep_wl, ep_pt, ep_pr = self._parse_endpoint(endpoint)
+        if ep_ns != WILDCARD and ep_ns != namespace:
+            return False
+        if workload is not None:
+            if ep_wl != workload and ep_wl != WILDCARD:
+                return False
+        elif ep_wl != WILDCARD or not self._port_matches(ep_pt, port, protocol, ep_pr):
+            return False
+        return self._port_matches(ep_pt, port, protocol, ep_pr)
+
+    def _cell_tier(self, row, col, value):
+        """Map a matrix cell to its query-resolution priority tier."""
+        engine = self.engine_deny_cells.get((row, col))
+        if engine == "cilium":
+            return "cilium_deny"
+        if engine == "calico":
+            return "calico_deny"
+        if row in self.is_policy_applied or col in self.is_policy_applied:
+            return "policy_allow" if value == 1 else "policy_deny"
+        return "default"
+
+    def _resolve_by_priority(self, matches):
+        """
+        Walk QUERY_TIER_PRIORITY and apply tier tie-breaking.
+        Deny tiers: any 0 blocks. Allow tiers: any 1 permits.
+        """
+        for tier in QUERY_TIER_PRIORITY:
+            tier_matches = [match for match in matches if match["tier"] == tier]
+            if not tier_matches:
+                continue
+            if tier in QUERY_DENY_TIERS:
+                for match in tier_matches:
+                    if match["value"] == 0:
+                        return False, match, tier
+                continue
+            for match in tier_matches:
+                if match["value"] == 1:
+                    return True, match, tier
+            if tier == "default":
+                return False, tier_matches[0], tier
+        deciding_match = matches[0]
+        return deciding_match["value"] == 1, deciding_match, deciding_match["tier"]
+
+    def query_reachability(
+        self,
+        source_namespace,
+        dest_namespace,
+        source_workload=None,
+        dest_workload=None,
+        port=None,
+        protocol=None,
+    ):
+        """
+        Check reachability for a namespace/pod query against wildcard matrix endpoints.
+        Resolves all matching cells by QUERY_TIER_PRIORITY.
+        Returns a result dict, or "invalid query" when nothing matches.
+        """
+        if self.reachability_matrix.empty:
+            return "invalid query"
+
+        source_rows = sorted(
+            row for row in self.reachability_matrix.index
+            if self._matches_endpoint(row, source_namespace, source_workload)
+        )
+        dest_columns = sorted(
+            col for col in self.reachability_matrix.columns
+            if self._matches_endpoint(col, dest_namespace, dest_workload, port, protocol)
+        )
+        if not source_rows or not dest_columns:
+            return "invalid query"
+
+        matches = []
+        for row in source_rows:
+            for col in dest_columns:
+                value = int(self.reachability_matrix.at[row, col])
+                matches.append({
+                    "source": row,
+                    "destination": col,
+                    "value": value,
+                    "tier": self._cell_tier(row, col, value),
+                })
+
+        reachable, deciding_match, tier = self._resolve_by_priority(matches)
+        return {
+            "reachable": reachable,
+            "tier": tier,
+            "deciding_match": deciding_match,
+            "matches": matches,
+            "source_rows": source_rows,
+            "dest_columns": dest_columns,
+        }
+
     def print_reachability_table(self):
+        """Print the final reachability matrix to stdout."""
         if self.reachability_matrix.empty:
             print("Empty reachability matrix.")
             return
