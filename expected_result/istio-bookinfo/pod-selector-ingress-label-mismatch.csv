@@ -1,4 +1,4 @@
 ,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-services-ns_details-v1_*_*,bookinfo-services-ns_ClusterIP-details_*_*
-bookinfo-frontend-ns,1,0,1,0,0
-bookinfo-services-ns,1,0,1,0,0
-bookinfo-data-ns,1,0,1,0,0
+bookinfo-frontend-ns,1,1,1,0,0
+bookinfo-services-ns,1,1,1,0,0
+bookinfo-data-ns,1,1,1,0,0

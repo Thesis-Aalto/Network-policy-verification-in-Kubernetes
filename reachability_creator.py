@@ -118,6 +118,7 @@ class ReachabilityCreator():
 
     def _endpoint_parent_chain(self, endpoint_name):
         namespace, workload, port, protocol = self._parse_endpoint(endpoint_name)
+        had_workload = workload != WILDCARD
         parents = []
         current = (namespace, workload, port, protocol)
         while True:
@@ -137,6 +138,8 @@ class ReachabilityCreator():
             parent_ns, parent_wl, parent_pt, parent_pr = current
             collapse = parent_wl == WILDCARD and parent_pt == WILDCARD and parent_pr == WILDCARD
             if collapse and parent_ns == WILDCARD:
+                break
+            if collapse and had_workload:
                 break
             parents.append(self._encode_endpoint(
                 parent_ns, parent_wl, parent_pt, parent_pr, collapse_namespace=collapse))
