@@ -35,12 +35,14 @@ class Policy():
 
 
 class PolicyRule():
-    def __init__(self, policy_type, target_labels, namespace_label, ports, is_deny=False):
+    def __init__(self, policy_type, target_labels, namespace_label, ports, is_deny=False,
+                 ip_block_cidr=None):
         self.policy_type = policy_type
         self.target_labels = target_labels
         self.namespace_label = namespace_label
         self.ports = ports
         self.is_deny = is_deny
+        self.ip_block_cidr = ip_block_cidr
 
 
 class Port():
@@ -94,8 +96,11 @@ class PolicyParser():
                         is_deny = rule.get("action", "Allow") == "Deny"
                         all_targets = self.get_target_labels(policy_type, rule, is_calico=True)
                         ports = self.get_rule_ports(rule, policy_type, is_calico=True)
-                        for target_labels, ns_label in all_targets:
-                            rules.append(PolicyRule(policy_type, target_labels, ns_label, ports, is_deny))
+                        for target_labels, ns_label, ip_cidr in all_targets:
+                            rules.append(PolicyRule(
+                                policy_type, target_labels, ns_label, ports, is_deny,
+                                ip_block_cidr=ip_cidr,
+                            ))
             else:
                 if is_cilium:
                     raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
@@ -127,8 +132,11 @@ class PolicyParser():
                     for rule in spec.get(section_name) or []:
                         all_targets = self.get_target_labels(policy_type, rule, is_cilium=is_cilium)
                         ports = self.get_rule_ports(rule, policy_type, is_cilium=is_cilium)
-                        for target_labels, ns_label in all_targets:
-                            rules.append(PolicyRule(policy_type, target_labels, ns_label, ports, is_deny))
+                        for target_labels, ns_label, ip_cidr in all_targets:
+                            rules.append(PolicyRule(
+                                policy_type, target_labels, ns_label, ports, is_deny,
+                                ip_block_cidr=ip_cidr,
+                            ))
                         if rule == {}:
                             rules.append(PolicyRule(policy_type, {}, {}, [], is_deny))
                         elif len(all_targets) == 0:
@@ -161,27 +169,35 @@ class PolicyParser():
             return [(
                 self.parse_calico_selector(entity.get("selector")),
                 self.parse_calico_selector(entity.get("namespaceSelector")),
+                None,
             )]
         if rule == {}:
-            return [({}, {})] if is_cilium else []
+            return [({}, {}, None)] if is_cilium else []
         if is_cilium:
             endpoint_key = "fromEndpoints" if policy_type == "Ingress" else "toEndpoints"
+            cidr_key = "fromCIDR" if policy_type == "Ingress" else "toCIDR"
             results = []
             for endpoint in rule.get(endpoint_key) or []:
                 if not endpoint or (not endpoint.get("matchLabels") and not endpoint.get("matchExpressions")):
-                    results.append(({}, {}))
+                    results.append(({}, {}, None))
                     continue
                 target_labels, namespace_label = self.split_cilium_labels(endpoint.get("matchLabels") or {})
-                results.append((target_labels, namespace_label))
+                results.append((target_labels, namespace_label, None))
+            for cidr in rule.get(cidr_key) or []:
+                results.append(({}, {}, cidr))
             return results
         labels = rule.get("from", []) if policy_type == "Ingress" else rule.get("to", [])
-        return [
-            (
-                label.get("podSelector", {}).get("matchLabels", {}),
-                label.get("namespaceSelector", {}).get("matchLabels", {}),
-            )
-            for label in labels
-        ]
+        results = []
+        for label in labels:
+            if label.get("ipBlock"):
+                results.append(({}, {}, label["ipBlock"].get("cidr")))
+            else:
+                results.append((
+                    label.get("podSelector", {}).get("matchLabels", {}),
+                    label.get("namespaceSelector", {}).get("matchLabels", {}),
+                    None,
+                ))
+        return results
 
     def get_rule_ports(self, rule, policy_type, is_cilium=False, is_calico=False):
         if is_calico:
@@ -226,6 +242,8 @@ class PolicyParser():
             print("Rules:")
             for rule in policy.rules:
                 print(f"\tPolicy Type: {rule.policy_type}\n\tIs Deny: {rule.is_deny}\n\tTarget Labels: {rule.target_labels}\n\tNamespace Label: {rule.namespace_label}")
+                if rule.ip_block_cidr:
+                    print(f"\tIP Block CIDR: {rule.ip_block_cidr}")
                 print("\tPorts")
                 for port in rule.ports:
                     print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")

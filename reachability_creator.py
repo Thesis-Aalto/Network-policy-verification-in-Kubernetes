@@ -1,6 +1,7 @@
 from policy_parser import Policy, PolicyRule, PolicyParser
 from container_discoverer import ContainerDiscoverer
 
+import ipaddress
 import sys
 import pandas as pd
 
@@ -20,8 +21,8 @@ class ReachabilityCreator():
 
     Rows are traffic sources and columns are destinations. Values are 1 (allowed) or 0 (denied).
     Endpoints use fixed format namespace_workload_port_protocol with '*' wildcards, e.g.
-    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. Cilium clusterwide and Calico
-    GlobalNetworkPolicy use *_workload_port_protocol where the first wildcard is the namespace.
+    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. External ipBlocks use the
+    same shape with the CIDR in the workload slot, e.g. backend-ns_10.0.0.0/24_*_*.
 
     Ingress and egress are tracked separately, then combined with element-wise multiplication:
     reachability = egress_matrix * ingress_matrix
@@ -69,8 +70,42 @@ class ReachabilityCreator():
         return [namespace.name for namespace in self.namespaces]
 
     def is_allow_all_rule(self, rule):
-        """Return True when a rule has no selectors and no ports (matches everything)."""
-        return rule.target_labels == {} and rule.namespace_label == {} and len(rule.ports) == 0
+        """Return True when a rule has no selectors, no ipBlock, and no ports (matches everything)."""
+        return (
+            rule.target_labels == {}
+            and rule.namespace_label == {}
+            and rule.ip_block_cidr is None
+            and len(rule.ports) == 0
+        )
+
+    def _is_cidr_identity(self, identity):
+        """Return True when an endpoint identity string is a CIDR range."""
+        return identity != WILDCARD and "/" in identity
+
+    def _is_ip_address(self, identity):
+        """Return True when an identity string is a specific IP address."""
+        if identity is None or identity == WILDCARD or self._is_cidr_identity(identity):
+            return False
+        try:
+            ipaddress.ip_address(identity)
+            return True
+        except ValueError:
+            return False
+
+    def _identity_matches(self, query_identity, endpoint_identity):
+        """Match pod/CIDR names exactly, or a specific IP against a CIDR endpoint."""
+        if endpoint_identity == WILDCARD:
+            return True
+        if query_identity == endpoint_identity:
+            return True
+        if self._is_ip_address(query_identity) and self._is_cidr_identity(endpoint_identity):
+            try:
+                return ipaddress.ip_address(query_identity) in ipaddress.ip_network(
+                    endpoint_identity, strict=False,
+                )
+            except ValueError:
+                return False
+        return False
 
     def _labels_match(self, labels, selector):
         """Return True when every key/value in selector is present and equal in labels."""
@@ -140,7 +175,7 @@ class ReachabilityCreator():
         Stops before bare namespace when the original endpoint had a workload (pod selector).
         """
         namespace, workload, port, protocol = self._parse_endpoint(endpoint_name)
-        had_workload = workload != WILDCARD
+        had_identity = workload != WILDCARD
         parents = []
         current = (namespace, workload, port, protocol)
         while True:
@@ -161,7 +196,7 @@ class ReachabilityCreator():
             collapse = parent_wl == WILDCARD and parent_pt == WILDCARD and parent_pr == WILDCARD
             if collapse and parent_ns == WILDCARD:
                 break
-            if collapse and had_workload:
+            if collapse and had_identity:
                 break
             parents.append(self._encode_endpoint(
                 parent_ns, parent_wl, parent_pt, parent_pr, collapse_namespace=collapse))
@@ -173,6 +208,22 @@ class ReachabilityCreator():
     def _workload_endpoint(self, namespace, workload_name, clusterwide=False):
         """Encode a workload-level endpoint: namespace_workload_*_*."""
         return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), workload_name)
+
+    def _ipblock_endpoint(self, namespace, cidr, port=WILDCARD, protocol=WILDCARD, clusterwide=False):
+        """Encode an ipBlock endpoint: namespace_cidr_port_protocol."""
+        return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), cidr, port, protocol)
+
+    def _add_ipblock_endpoints(self, endpoints, namespaces, cidr, ports, clusterwide=False):
+        """Add ipBlock CIDR endpoints to a sources or targets dict."""
+        for namespace in namespaces:
+            endpoint_namespace = self._endpoint_namespace(namespace, clusterwide)
+            if not ports:
+                endpoints[self._ipblock_endpoint(endpoint_namespace, cidr)] = 1
+            else:
+                for port in ports:
+                    endpoints[self._ipblock_endpoint(
+                        endpoint_namespace, cidr, port.portNumber, port.protocol,
+                    )] = 1
 
     def _service_endpoint(self, namespace, service_identity, port=None, protocol=None, clusterwide=False):
         """Encode a service endpoint, with or without port and protocol."""
@@ -247,6 +298,10 @@ class ReachabilityCreator():
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
                         targets[namespace_name] = 1
+                elif rule.ip_block_cidr:
+                    self._add_ipblock_endpoints(
+                        targets, targeted_namespaces, rule.ip_block_cidr, rule.ports, clusterwide,
+                    )
                 elif rule.target_labels == {}:
                     if len(rule.ports) == 0:
                         for namespace in targeted_namespaces:
@@ -264,6 +319,10 @@ class ReachabilityCreator():
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
                         sources[namespace_name] = 1
+                elif rule.ip_block_cidr:
+                    self._add_ipblock_endpoints(
+                        sources, targeted_namespaces, rule.ip_block_cidr, rule.ports, clusterwide,
+                    )
                 else:
                     for namespace in targeted_namespaces:
                         if rule.target_labels == {}:
@@ -541,17 +600,7 @@ class ReachabilityCreator():
         """Combine ingress and egress matrices: reachability = egress * ingress."""
         self.reachability_matrix = self.egress_matrix * self.ingress_matrix
 
-    def _port_matches(self, ep_port, port, protocol=None, ep_protocol=WILDCARD):
-        """Return True when an endpoint port/protocol matches the query."""
-        if port is None:
-            return ep_port == WILDCARD
-        if ep_port != str(port) and ep_port != WILDCARD:
-            return False
-        if protocol is None:
-            return True
-        return ep_protocol == protocol or ep_protocol == WILDCARD
-
-    def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None):
+    def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None, role="destination"):
         """Return True when a matrix row/column matches the query using wildcards."""
         if endpoint in self.all_namespace_names():
             return endpoint == namespace
@@ -560,11 +609,32 @@ class ReachabilityCreator():
         if ep_ns != WILDCARD and ep_ns != namespace:
             return False
         if workload is not None:
-            if ep_wl != workload and ep_wl != WILDCARD:
+            if not self._identity_matches(workload, ep_wl):
                 return False
-        elif ep_wl != WILDCARD or not self._port_matches(ep_pt, port, protocol, ep_pr):
+        elif ep_wl != WILDCARD or not self._port_matches(ep_pt, port, protocol, ep_pr, role):
             return False
-        return self._port_matches(ep_pt, port, protocol, ep_pr)
+
+        if role == "source":
+            if workload is not None and (
+                self._is_cidr_identity(workload)
+                or (self._is_ip_address(workload) and self._is_cidr_identity(ep_wl))
+            ):
+                return True
+            return ep_pt == WILDCARD and ep_pr == WILDCARD
+
+        return self._port_matches(ep_pt, port, protocol, ep_pr, role)
+
+    def _port_matches(self, ep_port, port, protocol=None, ep_protocol=WILDCARD, role="destination"):
+        """Return True when an endpoint port/protocol matches the query."""
+        if role == "source":
+            return ep_port == WILDCARD
+        if port is None:
+            return ep_port == WILDCARD
+        if ep_port != str(port) and ep_port != WILDCARD:
+            return False
+        if protocol is None:
+            return True
+        return ep_protocol == protocol or ep_protocol == WILDCARD
 
     def _cell_tier(self, row, col, value):
         """Map a matrix cell to its query-resolution priority tier."""
@@ -609,7 +679,10 @@ class ReachabilityCreator():
         protocol=None,
     ):
         """
-        Check reachability for a namespace/pod query against wildcard matrix endpoints.
+        Check reachability for a namespace/pod/CIDR query against wildcard matrix endpoints.
+        CIDR destinations or sources use the workload slot, e.g. 10.0.0.0/24.
+        A specific IP address also matches CIDR endpoints that contain it.
+        port and protocol apply to the destination only, not the source.
         Resolves all matching cells by QUERY_TIER_PRIORITY.
         Returns a result dict, or "invalid query" when nothing matches.
         """
@@ -618,11 +691,11 @@ class ReachabilityCreator():
 
         source_rows = sorted(
             row for row in self.reachability_matrix.index
-            if self._matches_endpoint(row, source_namespace, source_workload)
+            if self._matches_endpoint(row, source_namespace, source_workload, role="source")
         )
         dest_columns = sorted(
             col for col in self.reachability_matrix.columns
-            if self._matches_endpoint(col, dest_namespace, dest_workload, port, protocol)
+            if self._matches_endpoint(col, dest_namespace, dest_workload, port, protocol, role="destination")
         )
         if not source_rows or not dest_columns:
             return "invalid query"
