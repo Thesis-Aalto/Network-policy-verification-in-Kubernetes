@@ -1,0 +1,4 @@
+,database-ns,backend-ns,frontend-ns,database-ns_*_27010-27020_TCP,database-ns_*_27010-27020_*
+database-ns,1,1,1,1,1
+backend-ns,0,0,0,1,0
+frontend-ns,1,1,1,1,1

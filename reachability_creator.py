@@ -46,14 +46,14 @@ class ReachabilityCreator():
         self.reachability_matrix = pd.DataFrame()
 
     def create_reachability_matrix(self):
-        """Apply all policies in three phases (allow, default, deny) and build the final matrix."""
+        """Apply all policies in three phases (allow, policy-deny, CNI-deny) and build the final matrix."""
         for policy in self.network_policies:
             self.apply_network_policy(policy, phase="allow")
         for policy in self.network_policies:
             if len(policy.rules) == 0:
-                self.apply_network_policy(policy, phase="default")
+                self.apply_network_policy(policy, phase="policy_deny")
         for policy in self.network_policies:
-            self.apply_network_policy(policy, phase="deny")
+            self.apply_network_policy(policy, phase="cni_deny")
         self.intersect_egress_and_igress()
         return self.reachability_matrix
 
@@ -158,7 +158,7 @@ class ReachabilityCreator():
         port = WILDCARD
         if parts and (parts[-1] in KNOWN_PROTOCOLS or parts[-1] == WILDCARD):
             protocol = parts.pop()
-        if parts and (parts[-1] == WILDCARD or parts[-1].isdigit()):
+        if parts and self._is_port_token(parts[-1]):
             port = parts.pop()
 
         workload = WILDCARD
@@ -168,6 +168,28 @@ class ReachabilityCreator():
                 workload = WILDCARD
 
         return namespace, workload, port, protocol
+
+    def _is_port_token(self, token):
+        """Return True when a token is a port number or port range."""
+        if token == WILDCARD:
+            return True
+        if token.isdigit():
+            return True
+        if "-" in token:
+            start, end = token.split("-", 1)
+            return start.isdigit() and end.isdigit()
+        return False
+
+    def _port_in_endpoint(self, ep_port, query_port):
+        """Return True when a query port matches an endpoint port or range."""
+        if query_port is None:
+            return ep_port == WILDCARD
+        if ep_port == WILDCARD:
+            return True
+        if "-" in ep_port:
+            start, end = ep_port.split("-", 1)
+            return int(start) <= int(query_port) <= int(end)
+        return ep_port == str(query_port)
 
     def _endpoint_parent_chain(self, endpoint_name):
         """
@@ -222,7 +244,7 @@ class ReachabilityCreator():
             else:
                 for port in ports:
                     endpoints[self._ipblock_endpoint(
-                        endpoint_namespace, cidr, port.portNumber, port.protocol,
+                        endpoint_namespace, cidr, port.endpoint_token(), port.protocol,
                     )] = 1
 
     def _service_endpoint(self, namespace, service_identity, port=None, protocol=None, clusterwide=False):
@@ -234,29 +256,28 @@ class ReachabilityCreator():
 
     def _namespace_port_endpoint(self, namespace, port, protocol, clusterwide=False):
         """Encode a namespace-level port endpoint: namespace_*_port_protocol."""
-        return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), WILDCARD, port.portNumber, port.protocol)
+        port_token = port.endpoint_token() if hasattr(port, "endpoint_token") else str(port.portNumber)
+        return self._encode_endpoint(self._endpoint_namespace(namespace, clusterwide), WILDCARD, port_token, protocol)
 
     def apply_network_policy(self, policy, phase="allow"):
         """
-        Apply one policy in a given phase (allow, default, or deny).
+        Apply one policy in a given phase (allow, policy-deny, or CNI-deny).
         Resolves sources and targets from selectors, then updates ingress/egress matrices.
         """
         clusterwide = policy.is_clusterwide
-        if phase == "default":
+        if phase == "policy_deny":
             sources = {}
             source_namespaces = self.all_namespace_names() if clusterwide else [policy.namespace]
             if policy.source_labels == {}:
                 for namespace_name in source_namespaces:
                     sources[namespace_name] = 1
-                    for workload in self.workloads.get(namespace_name, []):
-                        sources[self._workload_endpoint(workload.namespace, workload.name, clusterwide)] = 1
             else:
                 for namespace_name in source_namespaces:
                     for workload in self.workloads.get(namespace_name, []):
                         if self._labels_match(workload.labels, policy.source_labels):
                             sources[self._workload_endpoint(workload.namespace, workload.name, clusterwide)] = 1
             for policy_type in policy.policy_types:
-                self.fill_matrix(sources, {}, policy_type, policy.namespace)
+                self.apply_namespace_policy_deny(sources, policy_type, policy.namespace)
             return
 
         if len(policy.rules) == 0:
@@ -265,7 +286,7 @@ class ReachabilityCreator():
         for rule in policy.rules:
             if phase == "allow" and rule.is_deny:
                 continue
-            if phase == "deny" and not rule.is_deny:
+            if phase == "cni_deny" and not rule.is_deny:
                 continue
 
             sources = {}
@@ -372,7 +393,11 @@ class ReachabilityCreator():
                         continue
                     for port in ports:
                         column = self._encode_endpoint(
-                            self._endpoint_namespace(namespace, clusterwide), workload.name, container.port, port.protocol)
+                            self._endpoint_namespace(namespace, clusterwide),
+                            workload.name,
+                            container.port,
+                            port.protocol,
+                        )
                         if column not in self.egress_matrix.columns:
                             self.egress_matrix[column] = 1
                         if column not in self.ingress_matrix.columns:
@@ -396,18 +421,21 @@ class ReachabilityCreator():
                 if self._labels_match(workload.labels, label_selector):
                     if with_ports:
                         for port in ports:
-                            targets[self._encode_endpoint(endpoint_namespace, workload.name, port.portNumber, port.protocol)] = 1
+                            targets[self._encode_endpoint(
+                                endpoint_namespace, workload.name, port.endpoint_token(), port.protocol,
+                            )] = 1
                     else:
                         targets[self._workload_endpoint(namespace, workload.name, clusterwide)] = 1
 
             for service in self.services.get(namespace, []):
                 if self._labels_match(service.selector, label_selector):
                     if with_ports:
-                        for port in service.ports:
+                        for service_port in service.ports:
                             for rule_port in ports:
-                                if port.port == rule_port.portNumber:
+                                if rule_port.contains(service_port.port):
                                     targets[self._service_endpoint(
-                                        namespace, service.identity, rule_port.portNumber, rule_port.protocol, clusterwide)] = 1
+                                        namespace, service.identity, rule_port.endpoint_token(), rule_port.protocol, clusterwide,
+                                    )] = 1
                     else:
                         targets[self._service_endpoint(namespace, service.identity, clusterwide=clusterwide)] = 1
 
@@ -474,6 +502,32 @@ class ReachabilityCreator():
         elif policy.is_calico:
             self.engine_deny_cells[(source, target)] = "calico"
 
+    def apply_namespace_policy_deny(self, source_workloads, policy_type, policy_namespace):
+        """
+        Apply implicit deny-all at namespace granularity.
+        Skips directions already configured by an allow policy (tracked in is_policy_applied).
+        """
+        if policy_type == "Ingress":
+            if (
+                policy_namespace in self.is_policy_applied
+                and self.is_policy_applied[policy_namespace] in (1, 3)
+            ):
+                return
+            if policy_namespace not in self.ingress_matrix.columns:
+                self.ingress_matrix[policy_namespace] = 1
+            self.ingress_matrix[policy_namespace] = 0
+            self.update_is_policy_applied(policy_type, policy_namespace)
+            return
+
+        for source in source_workloads:
+            if source in self.is_policy_applied and self.is_policy_applied[source] in (2, 3):
+                continue
+            if source not in self.all_namespace_names():
+                self._ensure_egress_row(source)
+                self._ensure_ingress_row(source)
+            self.egress_matrix.loc[source] = 0
+            self.update_is_policy_applied(policy_type, source)
+
     def fill_matrix(self, source_workloads, target_endpoints, policy_type, policy_namespace, allow_all=False):
         """
         Apply an allow rule to the ingress or egress matrix.
@@ -484,10 +538,7 @@ class ReachabilityCreator():
                 if policy_namespace not in self.ingress_matrix.columns:
                     self.ingress_matrix[policy_namespace] = 1
                 self.ingress_matrix[policy_namespace] = 0
-                if policy_namespace not in self.is_policy_applied:
-                    self.is_policy_applied[policy_namespace] = 1
-                elif self.is_policy_applied[policy_namespace] == 2:
-                    self.is_policy_applied[policy_namespace] = 3
+                self.update_is_policy_applied(policy_type, policy_namespace)
                 return
 
             for target in target_endpoints:
@@ -630,7 +681,7 @@ class ReachabilityCreator():
             return ep_port == WILDCARD
         if port is None:
             return ep_port == WILDCARD
-        if ep_port != str(port) and ep_port != WILDCARD:
+        if not self._port_in_endpoint(ep_port, port):
             return False
         if protocol is None:
             return True

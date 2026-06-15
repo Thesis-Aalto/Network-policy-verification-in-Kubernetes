@@ -46,9 +46,23 @@ class PolicyRule():
 
 
 class Port():
-    def __init__(self, portNumber, protocol):
+    def __init__(self, portNumber, protocol, endPort=None):
         self.portNumber = portNumber
         self.protocol = protocol
+        self.endPort = endPort
+
+    def endpoint_token(self):
+        """Return the port component used in matrix endpoint strings."""
+        if self.endPort is not None:
+            return f"{self.portNumber}-{self.endPort}"
+        return str(self.portNumber)
+
+    def contains(self, port):
+        """Return True when a numeric port falls inside this port or range."""
+        port_value = int(port)
+        if self.endPort is None:
+            return port_value == int(self.portNumber)
+        return int(self.portNumber) <= port_value <= int(self.endPort)
 
 
 class PolicyParser():
@@ -199,6 +213,27 @@ class PolicyParser():
                 ))
         return results
 
+    def _parse_port_number(self, value):
+        """Parse a Kubernetes/Cilium port field into an integer."""
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        raise ValueError(f"Unsupported port value: {value!r}")
+
+    def _parse_port_entry(self, port, protocol=None):
+        """Parse a single port or port range from a policy rule."""
+        if isinstance(port, int):
+            return Port(port, protocol or "TCP")
+        if isinstance(port, str):
+            port_number = port.split(":")[0] if ":" in port else port
+            return Port(self._parse_port_number(port_number), protocol or "TCP")
+        port_number = self._parse_port_number(port["port"])
+        end_port = port.get("endPort")
+        if end_port is not None:
+            end_port = self._parse_port_number(end_port)
+        return Port(port_number, port.get("protocol") or protocol or "TCP", endPort=end_port)
+
     def get_rule_ports(self, rule, policy_type, is_cilium=False, is_calico=False):
         if is_calico:
             protocol = rule.get("protocol") or "TCP"
@@ -214,16 +249,9 @@ class PolicyParser():
         ports = []
         for port in port_entries:
             if is_calico:
-                port_number = port.split(":")[0] if isinstance(port, str) else port
-                if isinstance(port_number, str) and port_number.isdigit():
-                    port_number = int(port_number)
-                protocol = rule.get("protocol") or "TCP"
+                ports.append(self._parse_port_entry(port, protocol=protocol))
             else:
-                port_number = port["port"]
-                if isinstance(port_number, str) and port_number.isdigit():
-                    port_number = int(port_number)
-                protocol = port.get("protocol") or "TCP"
-            ports.append(Port(port_number, protocol))
+                ports.append(self._parse_port_entry(port))
         return ports
 
     def split_cilium_labels(self, match_labels):
@@ -246,7 +274,10 @@ class PolicyParser():
                     print(f"\tIP Block CIDR: {rule.ip_block_cidr}")
                 print("\tPorts")
                 for port in rule.ports:
-                    print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")
+                    if port.endPort is not None:
+                        print(f"\t\tPort Range: {port.portNumber}-{port.endPort}\n\t\tPort Protocol: {port.protocol}")
+                    else:
+                        print(f"\t\tPort Number: {port.portNumber}\n\t\tPort Protocol: {port.protocol}")
                 print()
             print()
 
