@@ -266,7 +266,16 @@ class PolicyParser():
 
     def print_network_policy(self):
         for policy in self.network_policies:
-            print(f"Policy Name: {policy.name}\nPolicy Namespace: {policy.namespace}\nSource Labels: {policy.source_labels}\nPolicy Types: {policy.policy_types}")
+            print(
+                f"Policy Name: {policy.name}\n"
+                f"Policy Namespace: {policy.namespace}\n"
+                f"Source Labels: {policy.source_labels}\n"
+                f"Policy Types: {policy.policy_types}\n"
+                f"Is Clusterwide: {policy.is_clusterwide}\n"
+                f"Endpoint Namespaces: {policy.endpoint_namespaces}\n"
+                f"Is Cilium: {policy.is_cilium}\n"
+                f"Is Calico: {policy.is_calico}"
+            )
             print("Rules:")
             for rule in policy.rules:
                 print(f"\tPolicy Type: {rule.policy_type}\n\tIs Deny: {rule.is_deny}\n\tTarget Labels: {rule.target_labels}\n\tNamespace Label: {rule.namespace_label}")

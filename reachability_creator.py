@@ -508,10 +508,7 @@ class ReachabilityCreator():
         Skips directions already configured by an allow policy (tracked in is_policy_applied).
         """
         if policy_type == "Ingress":
-            if (
-                policy_namespace in self.is_policy_applied
-                and self.is_policy_applied[policy_namespace] in (1, 3)
-            ):
+            if policy_namespace in self.is_policy_applied and self.is_policy_applied[policy_namespace] in (1, 3):
                 return
             if policy_namespace not in self.ingress_matrix.columns:
                 self.ingress_matrix[policy_namespace] = 1
