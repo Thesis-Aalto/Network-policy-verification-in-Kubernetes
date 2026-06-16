@@ -466,12 +466,18 @@ class ReachabilityCreator():
     def _apply_parent_endpoints(self, endpoint_name, policy_type, restricted_source=None):
         """
         Propagate policy effects to broader parent endpoints (wildcard aggregation).
-        For ingress: parent columns are denied. For egress: restricted source is blocked.
+        For ingress: parent columns are denied unless already covered by a prior rule.
+        For egress: restricted source is blocked on parent unless already explicitly allowed.
         """
         for new_endpoint in self._endpoint_parent_chain(endpoint_name):
+            parent_has_ingress_rule = (
+                policy_type == "Ingress"
+                and new_endpoint in self.is_policy_applied
+                and self.is_policy_applied[new_endpoint] in (1, 3)
+            )
             self.update_is_policy_applied(policy_type, new_endpoint)
             if policy_type == "Ingress":
-                if new_endpoint not in self.is_policy_applied or self.is_policy_applied[new_endpoint] in (1, 3):
+                if not parent_has_ingress_rule:
                     if new_endpoint not in self.ingress_matrix.columns:
                         self.ingress_matrix[new_endpoint] = 1
                     self.ingress_matrix[new_endpoint] = 0
@@ -489,7 +495,8 @@ class ReachabilityCreator():
                         if row not in self.is_policy_applied or self.is_policy_applied[row] == 1:
                             self.egress_matrix.at[row, new_endpoint] = 1
                 elif restricted_source is not None:
-                    self.egress_matrix.at[restricted_source, new_endpoint] = 0
+                    if self.egress_matrix.at[restricted_source, new_endpoint] != 1:
+                        self.egress_matrix.at[restricted_source, new_endpoint] = 0
                 if new_endpoint not in self.ingress_matrix.columns:
                     self.ingress_matrix[new_endpoint] = 1
 
