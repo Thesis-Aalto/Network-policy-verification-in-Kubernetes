@@ -1,0 +1,4 @@
+,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-data-ns_*_9080-9090_TCP,bookinfo-data-ns_*_9080-9090_*
+bookinfo-frontend-ns,1,1,1,1,1
+bookinfo-services-ns,0,0,0,1,0
+bookinfo-data-ns,1,1,1,1,1

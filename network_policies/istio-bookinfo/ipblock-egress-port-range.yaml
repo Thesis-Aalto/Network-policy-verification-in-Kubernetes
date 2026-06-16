@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ipblock-egress-port-range
+  namespace: bookinfo-services-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: reviews
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/24
+    ports:
+    - protocol: TCP
+      port: 440
+      endPort: 450
