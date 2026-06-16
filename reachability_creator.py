@@ -180,50 +180,29 @@ class ReachabilityCreator():
             return start.isdigit() and end.isdigit()
         return False
 
-    def _port_in_endpoint(self, ep_port, query_port):
-        """Return True when a query port matches an endpoint port or range."""
-        if query_port is None:
-            return ep_port == WILDCARD
-        if ep_port == WILDCARD:
-            return True
-        if "-" in ep_port:
-            start, end = ep_port.split("-", 1)
-            return int(start) <= int(query_port) <= int(end)
-        return ep_port == str(query_port)
-
     def _endpoint_parent_chain(self, endpoint_name):
         """
         Return broader parent endpoints by wildcarding protocol, port, then workload.
         Stops before bare namespace when the original endpoint had a workload (pod selector).
         """
-        namespace, workload, port, protocol = self._parse_endpoint(endpoint_name)
-        had_identity = workload != WILDCARD
+        ns, wl, pt, pr = self._parse_endpoint(endpoint_name)
+        had_identity = wl != WILDCARD
         parents = []
-        current = (namespace, workload, port, protocol)
         while True:
-            ns, wl, pt, pr = current
             if pr != WILDCARD:
-                current = (ns, wl, pt, WILDCARD)
+                pr = WILDCARD
             elif pt != WILDCARD:
-                current = (ns, wl, WILDCARD, WILDCARD)
+                pt, pr = WILDCARD, WILDCARD
             elif wl != WILDCARD:
-                current = (ns, WILDCARD, WILDCARD, WILDCARD)
+                wl, pt, pr = WILDCARD, WILDCARD, WILDCARD
             else:
                 break
 
-            if current == (namespace, workload, port, protocol):
+            collapse = wl == WILDCARD and pt == WILDCARD and pr == WILDCARD
+            if collapse and (ns == WILDCARD or had_identity):
                 break
-
-            parent_ns, parent_wl, parent_pt, parent_pr = current
-            collapse = parent_wl == WILDCARD and parent_pt == WILDCARD and parent_pr == WILDCARD
-            if collapse and parent_ns == WILDCARD:
-                break
-            if collapse and had_identity:
-                break
-            parents.append(self._encode_endpoint(
-                parent_ns, parent_wl, parent_pt, parent_pr, collapse_namespace=collapse))
-            specified = sum(value != WILDCARD for value in current[1:])
-            if specified == 0:
+            parents.append(self._encode_endpoint(ns, wl, pt, pr, collapse_namespace=collapse))
+            if collapse:
                 break
         return parents
 
@@ -655,9 +634,31 @@ class ReachabilityCreator():
         """Combine ingress and egress matrices: reachability = egress * ingress."""
         self.reachability_matrix = self.egress_matrix * self.ingress_matrix
 
+    # Query resolution: match all applicable matrix endpoints, then decide by tier priority.
+
+    def _is_bare_namespace(self, endpoint):
+        return endpoint in self.all_namespace_names()
+
+    def _matches_port_protocol(self, ep_port, ep_protocol, port, protocol):
+        """Return True when a destination endpoint port/protocol matches the query."""
+        if port is None:
+            return ep_port == WILDCARD
+        if ep_port != WILDCARD:
+            if "-" in ep_port:
+                start, end = ep_port.split("-", 1)
+                if not int(start) <= int(port) <= int(end):
+                    return False
+            elif ep_port != str(port):
+                return False
+        if protocol is None:
+            return True
+        if ep_protocol == WILDCARD and ep_port != WILDCARD:
+            return False
+        return ep_protocol == protocol or ep_protocol == WILDCARD
+
     def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None, role="destination"):
-        """Return True when a matrix row/column matches the query using wildcards."""
-        if endpoint in self.all_namespace_names():
+        """Return True when a matrix row/column matches the query."""
+        if self._is_bare_namespace(endpoint):
             return endpoint == namespace
 
         ep_ns, ep_wl, ep_pt, ep_pr = self._parse_endpoint(endpoint)
@@ -666,7 +667,7 @@ class ReachabilityCreator():
         if workload is not None:
             if not self._identity_matches(workload, ep_wl):
                 return False
-        elif ep_wl != WILDCARD or not self._port_matches(ep_pt, port, protocol, ep_pr, role):
+        elif ep_wl != WILDCARD:
             return False
 
         if role == "source":
@@ -677,36 +678,23 @@ class ReachabilityCreator():
                 return True
             return ep_pt == WILDCARD and ep_pr == WILDCARD
 
-        return self._port_matches(ep_pt, port, protocol, ep_pr, role)
-
-    def _port_matches(self, ep_port, port, protocol=None, ep_protocol=WILDCARD, role="destination"):
-        """Return True when an endpoint port/protocol matches the query."""
-        if role == "source":
-            return ep_port == WILDCARD
-        if port is None:
-            return ep_port == WILDCARD
-        if not self._port_in_endpoint(ep_port, port):
-            return False
-        if protocol is None:
-            return True
-        return ep_protocol == protocol or ep_protocol == WILDCARD
+        return self._matches_port_protocol(ep_pt, ep_pr, port, protocol)
 
     def _cell_tier(self, row, col, value):
-        """Map a matrix cell to its query-resolution priority tier."""
+        """Map a cell to a query tier for QUERY_TIER_PRIORITY resolution."""
         engine = self.engine_deny_cells.get((row, col))
         if engine == "cilium":
             return "cilium_deny"
         if engine == "calico":
             return "calico_deny"
-        if row in self.is_policy_applied or col in self.is_policy_applied:
+        if row in self.is_policy_applied:
+            return "policy_allow" if value == 1 else "policy_deny"
+        if col in self.is_policy_applied:
             return "policy_allow" if value == 1 else "policy_deny"
         return "default"
 
     def _resolve_by_priority(self, matches):
-        """
-        Walk QUERY_TIER_PRIORITY and apply tier tie-breaking.
-        Deny tiers: any 0 blocks. Allow tiers: any 1 permits.
-        """
+        """Pick reachable/not reachable from all matching cells using QUERY_TIER_PRIORITY."""
         for tier in QUERY_TIER_PRIORITY:
             tier_matches = [match for match in matches if match["tier"] == tier]
             if not tier_matches:
@@ -721,8 +709,8 @@ class ReachabilityCreator():
                     return True, match, tier
             if tier == "default":
                 return False, tier_matches[0], tier
-        deciding_match = matches[0]
-        return deciding_match["value"] == 1, deciding_match, deciding_match["tier"]
+        match = matches[0]
+        return match["value"] == 1, match, match["tier"]
 
     def query_reachability(
         self,
@@ -734,11 +722,7 @@ class ReachabilityCreator():
         protocol=None,
     ):
         """
-        Check reachability for a namespace/pod/CIDR query against wildcard matrix endpoints.
-        CIDR destinations or sources use the workload slot, e.g. 10.0.0.0/24.
-        A specific IP address also matches CIDR endpoints that contain it.
-        port and protocol apply to the destination only, not the source.
-        Resolves all matching cells by QUERY_TIER_PRIORITY.
+        Match all applicable matrix rows/columns for the query, then resolve by tier priority.
         Returns a result dict, or "invalid query" when nothing matches.
         """
         if self.reachability_matrix.empty:
@@ -750,7 +734,9 @@ class ReachabilityCreator():
         )
         dest_columns = sorted(
             col for col in self.reachability_matrix.columns
-            if self._matches_endpoint(col, dest_namespace, dest_workload, port, protocol, role="destination")
+            if self._matches_endpoint(
+                col, dest_namespace, dest_workload, port, protocol, role="destination",
+            )
         )
         if not source_rows or not dest_columns:
             return "invalid query"
@@ -765,7 +751,6 @@ class ReachabilityCreator():
                     "value": value,
                     "tier": self._cell_tier(row, col, value),
                 })
-
         reachable, deciding_match, tier = self._resolve_by_priority(matches)
         return {
             "reachable": reachable,
