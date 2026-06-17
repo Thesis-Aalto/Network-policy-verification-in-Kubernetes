@@ -30,10 +30,6 @@ class Policy():
         self.is_cilium = is_cilium
         self.is_calico = is_calico
 
-    def uses_cross_namespace_peers(self):
-        return self.is_clusterwide or self.is_cilium or self.is_calico
-
-
 class PolicyRule():
     def __init__(self, policy_type, target_labels, namespace_label, ports, is_deny=False,
                  ip_block_cidr=None):

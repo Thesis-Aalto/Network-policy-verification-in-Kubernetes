@@ -73,12 +73,12 @@ class ScenarioTest:
                network_policies = policy_parser.network_policies
 
                reachability_creator = ReachabilityCreator(services, workloads, namespaces, network_policies)
-               reachability_matrix = reachability_creator.create_reachability_matrix().astype(float)
+               reachability_matrix = reachability_creator.create_reachability_matrix().astype(int)
 
                test_file = policy_file.removesuffix(".yaml") + ".csv"
                expected_matrix = pd.read_csv(
                    self.result_folder_path+"/"+testbed+"/"+test_file, index_col=0
-               ).astype(float)
+               ).astype(int)
                result = self.matrices_equal(expected_matrix, reachability_matrix)
                if result:
                    print("Test result: CORRECT")

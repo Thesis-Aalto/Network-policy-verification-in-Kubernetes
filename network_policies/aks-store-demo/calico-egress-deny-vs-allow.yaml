@@ -10,10 +10,12 @@ spec:
   egress:
   - action: Allow
     destination:
+      namespaceSelector: kubernetes.io/metadata.name == 'database-ns'
       selector: app == 'mongodb'
   - action: Deny
     protocol: TCP
     destination:
+      namespaceSelector: kubernetes.io/metadata.name == 'database-ns'
       selector: app == 'mongodb'
       ports:
       - 27017

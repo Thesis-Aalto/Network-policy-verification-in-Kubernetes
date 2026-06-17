@@ -278,7 +278,7 @@ class ReachabilityCreator():
                     for namespace in self.namespaces
                     if self._labels_match(namespace.labels, rule.namespace_label)
                 ]
-            elif clusterwide or policy.uses_cross_namespace_peers():
+            elif clusterwide:
                 targeted_namespaces = self.all_namespace_names()
             else:
                 targeted_namespaces = [policy.namespace]

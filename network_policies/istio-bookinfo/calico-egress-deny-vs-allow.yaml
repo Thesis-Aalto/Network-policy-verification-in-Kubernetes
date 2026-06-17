@@ -10,10 +10,12 @@ spec:
   egress:
   - action: Allow
     destination:
+      namespaceSelector: kubernetes.io/metadata.name == 'bookinfo-data-ns'
       selector: app == 'ratings'
   - action: Deny
     protocol: TCP
     destination:
+      namespaceSelector: kubernetes.io/metadata.name == 'bookinfo-data-ns'
       selector: app == 'ratings'
       ports:
       - 9080

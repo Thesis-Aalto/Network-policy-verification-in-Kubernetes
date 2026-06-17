@@ -10,10 +10,12 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: backend-ns
         app: makeline-service
   ingressDeny:
   - fromEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: backend-ns
         app: makeline-service
     toPorts:
     - ports:

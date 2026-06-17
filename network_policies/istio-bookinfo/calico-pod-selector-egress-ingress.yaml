@@ -11,6 +11,7 @@ spec:
   ingress:
   - action: Allow
     source:
+      namespaceSelector: kubernetes.io/metadata.name == 'bookinfo-frontend-ns'
       selector: app == 'productpage'
   egress:
   - action: Allow

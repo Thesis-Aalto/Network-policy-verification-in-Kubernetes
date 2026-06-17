@@ -10,10 +10,12 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: database-ns
         app: mongodb
   egressDeny:
   - toEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: database-ns
         app: mongodb
     toPorts:
     - ports:

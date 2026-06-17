@@ -14,6 +14,7 @@ spec:
   egressDeny:
   - toEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: database-ns
         app: mongodb
     toPorts:
     - ports:

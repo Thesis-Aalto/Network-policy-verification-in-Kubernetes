@@ -10,6 +10,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-services-ns
         app: reviews
     toPorts:
     - ports:
@@ -18,6 +19,7 @@ spec:
   egressDeny:
   - toEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-data-ns
         app: ratings
     toPorts:
     - ports:

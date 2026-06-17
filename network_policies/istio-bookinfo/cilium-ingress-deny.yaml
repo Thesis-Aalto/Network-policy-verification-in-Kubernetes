@@ -10,6 +10,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-services-ns
         app: reviews
     toPorts:
     - ports:
@@ -18,6 +19,7 @@ spec:
   ingressDeny:
   - fromEndpoints:
     - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-frontend-ns
         app: productpage
     toPorts:
     - ports:
