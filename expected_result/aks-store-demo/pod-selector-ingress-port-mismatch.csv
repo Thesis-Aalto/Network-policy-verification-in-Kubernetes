@@ -1,5 +1,0 @@
-,database-ns,backend-ns,frontend-ns,backend-ns_product-service_8888_TCP,backend-ns_product-service_8888_*,backend-ns_product-service_*_*
-database-ns,1,1,1,0,0,0
-backend-ns,1,1,1,0,0,0
-frontend-ns,1,1,1,0,0,0
-backend-ns_order-service_*_*,1,1,1,1,0,0
