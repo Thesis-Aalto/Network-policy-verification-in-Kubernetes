@@ -11,8 +11,8 @@ pd.set_option('display.width', 2000)
 WILDCARD = "*"
 KNOWN_PROTOCOLS = frozenset({"TCP", "UDP", "SCTP"})
 ENDPOINT_SEP = "_"
-QUERY_TIER_PRIORITY = ("cilium_deny", "calico_deny", "policy_allow", "policy_deny", "default")
-QUERY_DENY_TIERS = frozenset({"cilium_deny", "calico_deny", "policy_deny"})
+QUERY_TIER_PRIORITY = ("cilium_deny", "policy_allow", "policy_deny", "default")
+QUERY_DENY_TIERS = frozenset({"cilium_deny", "policy_deny"})
 
 
 class ReachabilityCreator():
@@ -29,7 +29,7 @@ class ReachabilityCreator():
 
     is_policy_applied tracks endpoints affected by policies:
       1 = ingress (destination/column), 2 = egress (source/row), 3 = both
-    engine_deny_cells maps (source, destination) to "cilium" or "calico" for deny priority.
+    engine_deny_cells maps (source, destination) to "cilium" for deny priority.
     """
 
     def __init__(self, services, workloads, namespaces, network_policies):
@@ -480,13 +480,10 @@ class ReachabilityCreator():
                     self.ingress_matrix[new_endpoint] = 1
 
     def _mark_engine_deny_cell(self, policy, source, target):
-        """Record a Cilium or Calico deny cell for query-time priority resolution."""
-        if policy is None:
+        """Record a Cilium deny cell for query-time priority resolution."""
+        if policy is None or not policy.is_cilium:
             return
-        if policy.is_cilium:
-            self.engine_deny_cells[(source, target)] = "cilium"
-        elif policy.is_calico:
-            self.engine_deny_cells[(source, target)] = "calico"
+        self.engine_deny_cells[(source, target)] = "cilium"
 
     def apply_namespace_policy_deny(self, source_workloads, policy_type, policy_namespace):
         """Apply implicit deny-all at namespace granularity for empty-rule policies."""
@@ -576,7 +573,7 @@ class ReachabilityCreator():
                 self.update_is_policy_applied(policy_type, source)
 
     def fill_matrix_deny(self, source_workloads, target_endpoints, policy_type, policy_namespace, policy=None):
-        """Apply a deny rule (Cilium/Calico egressDeny or ingressDeny) to the matrix."""
+        """Apply a deny rule (Cilium egressDeny or ingressDeny) to the matrix."""
         if policy_type == "Ingress":
             if len(target_endpoints) == 0:
                 if policy_namespace not in self.ingress_matrix.columns:
@@ -678,8 +675,6 @@ class ReachabilityCreator():
         engine = self.engine_deny_cells.get((row, col))
         if engine == "cilium":
             return "cilium_deny"
-        if engine == "calico":
-            return "calico_deny"
         if row in self.is_policy_applied:
             return "policy_allow" if value == 1 else "policy_deny"
         if col in self.is_policy_applied:

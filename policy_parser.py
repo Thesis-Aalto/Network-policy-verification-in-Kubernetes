@@ -1,14 +1,9 @@
 import yaml
 import sys
 
-CALICO_API_PREFIX = "projectcalico.org/"
 CILIUM_KINDS = {
     "CiliumNetworkPolicy": True,
     "CiliumClusterwideNetworkPolicy": True,
-}
-CALICO_KINDS = {
-    "NetworkPolicy": True,
-    "GlobalNetworkPolicy": True,
 }
 CILIUM_NAMESPACE_NAME_KEYS = (
     "k8s:io.kubernetes.pod.namespace",
@@ -19,7 +14,7 @@ CILIUM_NAMESPACE_LABEL_PREFIX = "io.cilium.k8s.namespace.labels."
 
 class Policy():
     def __init__(self, name, namespace, source_labels, rules, policy_types, is_clusterwide=False,
-                 endpoint_namespaces=None, is_cilium=False, is_calico=False):
+                 endpoint_namespaces=None, is_cilium=False):
         self.name = name
         self.namespace = namespace
         self.source_labels = source_labels
@@ -28,7 +23,7 @@ class Policy():
         self.is_clusterwide = is_clusterwide
         self.endpoint_namespaces = endpoint_namespaces or []
         self.is_cilium = is_cilium
-        self.is_calico = is_calico
+
 
 class PolicyRule():
     def __init__(self, policy_type, target_labels, namespace_label, ports, is_deny=False,
@@ -76,14 +71,12 @@ class PolicyParser():
             if not policy:
                 continue
             kind = policy.get("kind")
-            api_version = policy.get("apiVersion", "")
-            is_calico = api_version.startswith(CALICO_API_PREFIX) and kind in CALICO_KINDS
             is_cilium = kind in CILIUM_KINDS
-            is_k8s = kind == "NetworkPolicy" and not is_calico
-            if not (is_k8s or is_cilium or is_calico):
+            is_k8s = kind == "NetworkPolicy"
+            if not (is_k8s or is_cilium):
                 continue
 
-            is_clusterwide = kind in {"CiliumClusterwideNetworkPolicy", "GlobalNetworkPolicy"}
+            is_clusterwide = kind == "CiliumClusterwideNetworkPolicy"
             name = policy["metadata"]["name"]
             namespace = policy["metadata"].get("namespace") or "default"
             spec = policy["spec"]
@@ -91,96 +84,53 @@ class PolicyParser():
             rules = []
             policy_types = []
 
-            if is_calico:
-                source_labels = self.parse_calico_selector(spec.get("selector"))
-                namespace_label = self.parse_calico_selector(spec.get("namespaceSelector"))
-                if "kubernetes.io/metadata.name" in namespace_label:
-                    endpoint_namespaces = [namespace_label["kubernetes.io/metadata.name"]]
-                policy_types = list(spec.get("types") or [])
-                for policy_type, section_name in [("Ingress", "ingress"), ("Egress", "egress")]:
-                    if section_name not in spec:
+            if is_cilium:
+                raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
+                source_labels, source_namespace_label = self.split_cilium_labels(raw_source_labels)
+                if "kubernetes.io/metadata.name" in source_namespace_label:
+                    namespace = source_namespace_label["kubernetes.io/metadata.name"]
+                    endpoint_namespaces = [namespace]
+            else:
+                source_labels = spec.get("podSelector", {}).get("matchLabels") or {}
+
+            rule_sections = [
+                ("Ingress", "ingress", False),
+                ("Egress", "egress", False),
+                ("Ingress", "ingressDeny", True),
+                ("Egress", "egressDeny", True),
+            ]
+            for policy_type, section_name, is_deny in rule_sections:
+                if is_cilium:
+                    if spec.get(section_name) is None:
                         continue
                     if policy_type not in policy_types:
                         policy_types.append(policy_type)
-                    for rule in spec.get(section_name) or []:
-                        is_deny = rule.get("action", "Allow") == "Deny"
-                        all_targets = self.get_target_labels(policy_type, rule, is_calico=True)
-                        ports = self.get_rule_ports(rule, policy_type, is_calico=True)
-                        for target_labels, ns_label, ip_cidr in all_targets:
-                            rules.append(PolicyRule(
-                                policy_type, target_labels, ns_label, ports, is_deny,
-                                ip_block_cidr=ip_cidr,
-                            ))
-            else:
-                if is_cilium:
-                    raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
-                    source_labels, source_namespace_label = self.split_cilium_labels(raw_source_labels)
-                    if "kubernetes.io/metadata.name" in source_namespace_label:
-                        namespace = source_namespace_label["kubernetes.io/metadata.name"]
-                        endpoint_namespaces = [namespace]
                 else:
-                    source_labels = spec.get("podSelector", {}).get("matchLabels") or {}
-
-                rule_sections = [
-                    ("Ingress", "ingress", False),
-                    ("Egress", "egress", False),
-                    ("Ingress", "ingressDeny", True),
-                    ("Egress", "egressDeny", True),
-                ]
-                for policy_type, section_name, is_deny in rule_sections:
-                    if is_cilium:
-                        if spec.get(section_name) is None:
-                            continue
-                        if policy_type not in policy_types:
-                            policy_types.append(policy_type)
-                    else:
-                        if is_deny:
-                            continue
-                        if policy_type not in spec.get("policyTypes", []):
-                            continue
-                        policy_types.append(policy_type)
-                    for rule in spec.get(section_name) or []:
-                        all_targets = self.get_target_labels(policy_type, rule, is_cilium=is_cilium)
-                        ports = self.get_rule_ports(rule, policy_type, is_cilium=is_cilium)
-                        for target_labels, ns_label, ip_cidr in all_targets:
-                            rules.append(PolicyRule(
-                                policy_type, target_labels, ns_label, ports, is_deny,
-                                ip_block_cidr=ip_cidr,
-                            ))
-                        if rule == {}:
-                            rules.append(PolicyRule(policy_type, {}, {}, [], is_deny))
-                        elif len(all_targets) == 0:
-                            rules.append(PolicyRule(policy_type, {}, {}, ports, is_deny))
-                if is_cilium and not policy_types:
-                    policy_types = ["Ingress", "Egress"]
-
-            if is_calico and not policy_types and (spec.get("ingress") is not None or spec.get("egress") is not None):
+                    if is_deny:
+                        continue
+                    if policy_type not in spec.get("policyTypes", []):
+                        continue
+                    policy_types.append(policy_type)
+                for rule in spec.get(section_name) or []:
+                    all_targets = self.get_target_labels(policy_type, rule, is_cilium=is_cilium)
+                    ports = self.get_rule_ports(rule, policy_type, is_cilium=is_cilium)
+                    for target_labels, ns_label, ip_cidr in all_targets:
+                        rules.append(PolicyRule(
+                            policy_type, target_labels, ns_label, ports, is_deny,
+                            ip_block_cidr=ip_cidr,
+                        ))
+                    if rule == {}:
+                        rules.append(PolicyRule(policy_type, {}, {}, [], is_deny))
+                    elif len(all_targets) == 0:
+                        rules.append(PolicyRule(policy_type, {}, {}, ports, is_deny))
+            if is_cilium and not policy_types:
                 policy_types = ["Ingress", "Egress"]
 
             self.network_policies.append(Policy(
                 name, namespace, source_labels, rules, policy_types, is_clusterwide,
-                endpoint_namespaces, is_cilium, is_calico))
+                endpoint_namespaces, is_cilium))
 
-    def parse_calico_selector(self, selector):
-        if not selector or str(selector).strip() in {"all()", ""}:
-            return {}
-        labels = {}
-        for part in str(selector).split("&&"):
-            part = part.strip()
-            if "==" not in part:
-                continue
-            key, value = part.split("==", 1)
-            labels[key.strip()] = value.strip().strip("'\"")
-        return labels
-
-    def get_target_labels(self, policy_type, rule, is_cilium=False, is_calico=False):
-        if is_calico:
-            entity = (rule.get("source") or {}) if policy_type == "Ingress" else (rule.get("destination") or {})
-            return [(
-                self.parse_calico_selector(entity.get("selector")),
-                self.parse_calico_selector(entity.get("namespaceSelector")),
-                None,
-            )]
+    def get_target_labels(self, policy_type, rule, is_cilium=False):
         if rule == {}:
             return [({}, {}, None)] if is_cilium else []
         if is_cilium:
@@ -230,12 +180,8 @@ class PolicyParser():
             end_port = self._parse_port_number(end_port)
         return Port(port_number, port.get("protocol") or protocol or "TCP", endPort=end_port)
 
-    def get_rule_ports(self, rule, policy_type, is_cilium=False, is_calico=False):
-        if is_calico:
-            protocol = rule.get("protocol") or "TCP"
-            entity = (rule.get("destination") or {}) if policy_type == "Ingress" else (rule.get("destination") or {})
-            port_entries = entity.get("ports") or []
-        elif is_cilium:
+    def get_rule_ports(self, rule, policy_type, is_cilium=False):
+        if is_cilium:
             port_entries = []
             for to_port in rule.get("toPorts") or []:
                 port_entries.extend(to_port.get("ports") or [])
@@ -244,10 +190,7 @@ class PolicyParser():
 
         ports = []
         for port in port_entries:
-            if is_calico:
-                ports.append(self._parse_port_entry(port, protocol=protocol))
-            else:
-                ports.append(self._parse_port_entry(port))
+            ports.append(self._parse_port_entry(port))
         return ports
 
     def split_cilium_labels(self, match_labels):
@@ -269,8 +212,7 @@ class PolicyParser():
                 f"Policy Types: {policy.policy_types}\n"
                 f"Is Clusterwide: {policy.is_clusterwide}\n"
                 f"Endpoint Namespaces: {policy.endpoint_namespaces}\n"
-                f"Is Cilium: {policy.is_cilium}\n"
-                f"Is Calico: {policy.is_calico}"
+                f"Is Cilium: {policy.is_cilium}"
             )
             print("Rules:")
             for rule in policy.rules:
