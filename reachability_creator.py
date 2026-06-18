@@ -113,8 +113,6 @@ class ReachabilityCreator():
 
     def _ingress_target_namespaces(self, policy):
         """Return namespaces whose pods are protected by an ingress policy."""
-        if policy.endpoint_namespaces:
-            return policy.endpoint_namespaces
         if policy.is_clusterwide:
             return self.all_namespace_names()
         return [policy.namespace]

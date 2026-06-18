@@ -14,14 +14,13 @@ CILIUM_NAMESPACE_LABEL_PREFIX = "io.cilium.k8s.namespace.labels."
 
 class Policy():
     def __init__(self, name, namespace, source_labels, rules, policy_types, is_clusterwide=False,
-                 endpoint_namespaces=None, is_cilium=False):
+                 is_cilium=False):
         self.name = name
         self.namespace = namespace
         self.source_labels = source_labels
         self.rules = rules
         self.policy_types = policy_types
         self.is_clusterwide = is_clusterwide
-        self.endpoint_namespaces = endpoint_namespaces or []
         self.is_cilium = is_cilium
 
 
@@ -80,16 +79,12 @@ class PolicyParser():
             name = policy["metadata"]["name"]
             namespace = policy["metadata"].get("namespace") or "default"
             spec = policy["spec"]
-            endpoint_namespaces = []
             rules = []
             policy_types = []
 
             if is_cilium:
                 raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
-                source_labels, source_namespace_label = self.split_cilium_labels(raw_source_labels)
-                if "kubernetes.io/metadata.name" in source_namespace_label:
-                    namespace = source_namespace_label["kubernetes.io/metadata.name"]
-                    endpoint_namespaces = [namespace]
+                source_labels, _ = self.split_cilium_labels(raw_source_labels)
             else:
                 source_labels = spec.get("podSelector", {}).get("matchLabels") or {}
 
@@ -127,8 +122,7 @@ class PolicyParser():
                 policy_types = ["Ingress", "Egress"]
 
             self.network_policies.append(Policy(
-                name, namespace, source_labels, rules, policy_types, is_clusterwide,
-                endpoint_namespaces, is_cilium))
+                name, namespace, source_labels, rules, policy_types, is_clusterwide, is_cilium))
 
     def get_target_labels(self, policy_type, rule, is_cilium=False):
         if rule == {}:
@@ -211,7 +205,6 @@ class PolicyParser():
                 f"Source Labels: {policy.source_labels}\n"
                 f"Policy Types: {policy.policy_types}\n"
                 f"Is Clusterwide: {policy.is_clusterwide}\n"
-                f"Endpoint Namespaces: {policy.endpoint_namespaces}\n"
                 f"Is Cilium: {policy.is_cilium}"
             )
             print("Rules:")
