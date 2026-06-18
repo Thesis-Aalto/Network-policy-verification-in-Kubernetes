@@ -79,50 +79,71 @@ class PolicyParser():
             name = policy["metadata"]["name"]
             namespace = policy["metadata"].get("namespace") or "default"
             spec = policy["spec"]
-            rules = []
-            policy_types = []
 
             if is_cilium:
                 raw_source_labels = spec.get("endpointSelector", {}).get("matchLabels") or {}
                 source_labels, _ = self.split_cilium_labels(raw_source_labels)
+                rules, policy_types = self._parse_cilium_policy(spec)
             else:
                 source_labels = spec.get("podSelector", {}).get("matchLabels") or {}
-
-            rule_sections = [
-                ("Ingress", "ingress", False),
-                ("Egress", "egress", False),
-                ("Ingress", "ingressDeny", True),
-                ("Egress", "egressDeny", True),
-            ]
-            for policy_type, section_name, is_deny in rule_sections:
-                if is_cilium:
-                    if spec.get(section_name) is None:
-                        continue
-                    if policy_type not in policy_types:
-                        policy_types.append(policy_type)
-                else:
-                    if is_deny:
-                        continue
-                    if policy_type not in spec.get("policyTypes", []):
-                        continue
-                    policy_types.append(policy_type)
-                for rule in spec.get(section_name) or []:
-                    all_targets = self.get_target_labels(policy_type, rule, is_cilium=is_cilium)
-                    ports = self.get_rule_ports(rule, policy_type, is_cilium=is_cilium)
-                    for target_labels, ns_label, ip_cidr in all_targets:
-                        rules.append(PolicyRule(
-                            policy_type, target_labels, ns_label, ports, is_deny,
-                            ip_block_cidr=ip_cidr,
-                        ))
-                    if rule == {}:
-                        rules.append(PolicyRule(policy_type, {}, {}, [], is_deny))
-                    elif len(all_targets) == 0:
-                        rules.append(PolicyRule(policy_type, {}, {}, ports, is_deny))
-            if is_cilium and not policy_types:
-                policy_types = ["Ingress", "Egress"]
+                policy_types = self._resolve_k8s_policy_types(spec)
+                rules = self._parse_k8s_rules(spec, policy_types)
 
             self.network_policies.append(Policy(
                 name, namespace, source_labels, rules, policy_types, is_clusterwide, is_cilium))
+
+    def _resolve_k8s_policy_types(self, spec):
+        """Apply Kubernetes defaults when policyTypes is omitted."""
+        if "policyTypes" in spec:
+            return list(spec["policyTypes"])
+        policy_types = ["Ingress"]
+        if spec.get("egress"):
+            policy_types.append("Egress")
+        return policy_types
+
+    def _parse_k8s_rules(self, spec, policy_types):
+        """Parse ingress/egress rules that match the effective policy types."""
+        rules = []
+        for policy_type, section_name in (("Ingress", "ingress"), ("Egress", "egress")):
+            if policy_type not in policy_types:
+                continue
+            for rule in spec.get(section_name) or []:
+                self._append_rule(rules, policy_type, rule, is_cilium=False, is_deny=False)
+        return rules
+
+    def _parse_cilium_policy(self, spec):
+        """Parse all Cilium rule sections and derive policy types from present sections."""
+        rules = []
+        policy_types = []
+        sections = (
+            ("Ingress", "ingress", False),
+            ("Egress", "egress", False),
+            ("Ingress", "ingressDeny", True),
+            ("Egress", "egressDeny", True),
+        )
+        for policy_type, section_name, is_deny in sections:
+            if spec.get(section_name) is None:
+                continue
+            if policy_type not in policy_types:
+                policy_types.append(policy_type)
+            for rule in spec.get(section_name) or []:
+                self._append_rule(rules, policy_type, rule, is_cilium=True, is_deny=is_deny)
+        if not policy_types and spec.get("endpointSelector") is not None:
+            policy_types = ["Ingress", "Egress"]
+        return rules, policy_types
+
+    def _append_rule(self, rules, policy_type, rule, is_cilium, is_deny):
+        all_targets = self.get_target_labels(policy_type, rule, is_cilium=is_cilium)
+        ports = self.get_rule_ports(rule, policy_type, is_cilium=is_cilium)
+        for target_labels, ns_label, ip_cidr in all_targets:
+            rules.append(PolicyRule(
+                policy_type, target_labels, ns_label, ports, is_deny,
+                ip_block_cidr=ip_cidr,
+            ))
+        if rule == {}:
+            rules.append(PolicyRule(policy_type, {}, {}, [], is_deny))
+        elif len(all_targets) == 0:
+            rules.append(PolicyRule(policy_type, {}, {}, ports, is_deny))
 
     def get_target_labels(self, policy_type, rule, is_cilium=False):
         if rule == {}:
