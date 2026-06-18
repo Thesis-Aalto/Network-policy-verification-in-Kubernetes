@@ -10,8 +10,7 @@ class Workload():
         self.labels = labels
         self.namespace = namespace
         self.containers = containers
-        self.services = []
-        
+
 
 class Container():
     def __init__(self, identity, name, port, is_maybe=False):
@@ -57,7 +56,6 @@ class ContainerDiscoverer():
             with open(yaml_path+"/"+file, "r") as f:
                 parsed_yaml = list(yaml.safe_load_all(f))
                 self.find_components(parsed_yaml)
-                self.match_services_and_workloads()
 
     def find_components(self, parsed_yaml):
         for component in parsed_yaml:
@@ -129,17 +127,6 @@ class ContainerDiscoverer():
         labels = component["metadata"].get("labels") or {}
         return Namespace(name, labels)
 
-    def match_services_and_workloads(self):
-        for namespace, workloads in self.workloads.items():
-            for workload in workloads:
-                for service in self.services[namespace]:
-                    is_add = True
-                    for key, value in service.selector.items():
-                        if key not in workload.labels or workload.labels[key] != value:
-                            is_add = False
-                    if is_add:
-                        workload.services.append(service)
-                        
     def print_results(self):
         print("\n" + "="*40)
         print("ALL SERVICES")
@@ -176,14 +163,7 @@ class ContainerDiscoverer():
                 print(f"    Kind:      {workload.kind}")
                 print(f"    Namespace: {workload.namespace}")
                 print(f"    Labels:    {workload.labels}")
-                
-                # Print connected services mapped from match_services_and_workloads
-                print("    Connected Services:")
-                if not workload.services:
-                    print("      (None)")
-                for service in workload.services:
-                    print(f"      - {service.name} ({service.service_type})")
-                
+
                 print("    Containers:")
                 if not workload.containers:
                     print("      (None)")
