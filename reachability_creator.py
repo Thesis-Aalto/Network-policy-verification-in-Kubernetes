@@ -46,12 +46,12 @@ class ReachabilityCreator():
         self.reachability_matrix = pd.DataFrame()
 
     def create_reachability_matrix(self):
-        """Apply all policies in three phases (allow, policy-deny, CNI-deny) and build the final matrix."""
-        for policy in self.network_policies:
-            self.apply_network_policy(policy, phase="allow")
+        """Apply all policies in three phases (policy-deny, allow, CNI-deny) and build the final matrix."""
         for policy in self.network_policies:
             if len(policy.rules) == 0:
                 self.apply_network_policy(policy, phase="policy_deny")
+        for policy in self.network_policies:
+            self.apply_network_policy(policy, phase="allow")
         for policy in self.network_policies:
             self.apply_network_policy(policy, phase="cni_deny")
         self.intersect_egress_and_igress()
@@ -489,13 +489,8 @@ class ReachabilityCreator():
             self.engine_deny_cells[(source, target)] = "calico"
 
     def apply_namespace_policy_deny(self, source_workloads, policy_type, policy_namespace):
-        """
-        Apply implicit deny-all at namespace granularity.
-        Skips directions already configured by an allow policy (tracked in is_policy_applied).
-        """
+        """Apply implicit deny-all at namespace granularity for empty-rule policies."""
         if policy_type == "Ingress":
-            if policy_namespace in self.is_policy_applied and self.is_policy_applied[policy_namespace] in (1, 3):
-                return
             if policy_namespace not in self.ingress_matrix.columns:
                 self.ingress_matrix[policy_namespace] = 1
             self.ingress_matrix[policy_namespace] = 0
@@ -503,8 +498,6 @@ class ReachabilityCreator():
             return
 
         for source in source_workloads:
-            if source in self.is_policy_applied and self.is_policy_applied[source] in (2, 3):
-                continue
             if source not in self.all_namespace_names():
                 self._ensure_egress_row(source)
                 self._ensure_ingress_row(source)
