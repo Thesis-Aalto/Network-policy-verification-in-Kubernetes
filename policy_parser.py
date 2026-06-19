@@ -12,6 +12,9 @@ CILIUM_NAMESPACE_NAME_KEYS = (
 CILIUM_NAMESPACE_LABEL_PREFIX = "io.cilium.k8s.namespace.labels."
 
 
+WILDCARD_PROTOCOL = "*"
+
+
 class Policy():
     def __init__(self, name, namespace, source_labels, rules, policy_types, is_clusterwide=False,
                  is_cilium=False):
@@ -182,18 +185,23 @@ class PolicyParser():
             return int(value)
         raise ValueError(f"Unsupported port value: {value!r}")
 
-    def _parse_port_entry(self, port, protocol=None):
+    def _parse_port_entry(self, port, protocol=None, is_cilium=False):
         """Parse a single port or port range from a policy rule."""
+        default_protocol = WILDCARD_PROTOCOL if is_cilium else "TCP"
         if isinstance(port, int):
-            return Port(port, protocol or "TCP")
+            return Port(port, protocol or default_protocol)
         if isinstance(port, str):
             port_number = port.split(":")[0] if ":" in port else port
-            return Port(self._parse_port_number(port_number), protocol or "TCP")
+            return Port(self._parse_port_number(port_number), protocol or default_protocol)
         port_number = self._parse_port_number(port["port"])
         end_port = port.get("endPort")
         if end_port is not None:
             end_port = self._parse_port_number(end_port)
-        return Port(port_number, port.get("protocol") or protocol or "TCP", endPort=end_port)
+        return Port(
+            port_number,
+            port.get("protocol") or protocol or default_protocol,
+            endPort=end_port,
+        )
 
     def get_rule_ports(self, rule, policy_type, is_cilium=False):
         if is_cilium:
@@ -205,7 +213,7 @@ class PolicyParser():
 
         ports = []
         for port in port_entries:
-            ports.append(self._parse_port_entry(port))
+            ports.append(self._parse_port_entry(port, is_cilium=is_cilium))
         return ports
 
     def split_cilium_labels(self, match_labels):

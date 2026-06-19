@@ -640,8 +640,6 @@ class ReachabilityCreator():
                 return False
         if protocol is None:
             return True
-        if ep_protocol == WILDCARD and ep_port != WILDCARD:
-            return False
         return ep_protocol == protocol or ep_protocol == WILDCARD
 
     def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None, role="destination"):
