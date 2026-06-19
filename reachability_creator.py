@@ -312,7 +312,6 @@ class ReachabilityCreator():
                     self._add_label_targets(targets, targeted_namespaces, rule.target_labels, with_ports=False, clusterwide=clusterwide)
                 else:
                     self._add_label_targets(targets, targeted_namespaces, rule.target_labels, with_ports=True, ports=rule.ports, clusterwide=clusterwide)
-                    self._ensure_container_port_columns(targeted_namespaces, rule.target_labels, rule.ports, clusterwide)
             else:
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
@@ -358,27 +357,6 @@ class ReachabilityCreator():
                 self.fill_matrix(
                     sources, targets, rule.policy_type, policy.namespace, allow_all=allow_all,
                 )
-
-    def _ensure_container_port_columns(self, namespaces, label_selector, ports, clusterwide=False):
-        """Add matrix columns for container ports that differ from the rule's service port."""
-        for namespace in namespaces:
-            for workload in self.workloads.get(namespace, []):
-                if not self._labels_match(workload.labels, label_selector):
-                    continue
-                for container in workload.containers:
-                    if container.port == "":
-                        continue
-                    for port in ports:
-                        column = self._encode_endpoint(
-                            self._endpoint_namespace(namespace, clusterwide),
-                            workload.name,
-                            container.port,
-                            port.protocol,
-                        )
-                        if column not in self.egress_matrix.columns:
-                            self.egress_matrix[column] = 1
-                        if column not in self.ingress_matrix.columns:
-                            self.ingress_matrix[column] = 1
 
     def _ensure_endpoint_columns(self, endpoints):
         """Add missing endpoint columns to both matrices, initialized to allowed (1)."""
