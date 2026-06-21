@@ -21,8 +21,8 @@ class ReachabilityCreator():
 
     Rows are traffic sources and columns are destinations. Values are 1 (allowed) or 0 (denied).
     Endpoints use fixed format namespace_workload_port_protocol with '*' wildcards, e.g.
-    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. External ipBlocks use the
-    same shape with the CIDR in the workload slot, e.g. backend-ns_10.0.0.0/24_*_*.
+    backend-ns_makeline-service_*_* or database-ns_*_5672_TCP. Namespace-level endpoints use
+    namespace_*_*_*. External ipBlocks use the CIDR in the workload slot, e.g. backend-ns_10.0.0.0/24_*_*.
 
     Ingress and egress are tracked separately, then combined with element-wise multiplication:
     reachability = egress_matrix * ingress_matrix
@@ -62,7 +62,9 @@ class ReachabilityCreator():
         new_matrix = pd.DataFrame()
         for source_namespace in self.namespaces:
             for target_namespace in self.namespaces:
-                new_matrix.at[source_namespace.name, target_namespace.name] = 1
+                source = self._namespace_endpoint(source_namespace.name)
+                target = self._namespace_endpoint(target_namespace.name)
+                new_matrix.at[source, target] = 1
         return new_matrix
 
     def all_namespace_names(self):
@@ -124,7 +126,7 @@ class ReachabilityCreator():
         namespace_names = self.all_namespace_names()
         matches = [
             name for name in namespace_names
-            if endpoint == name or endpoint.startswith(f"{name}{ENDPOINT_SEP}")
+            if endpoint.startswith(f"{name}{ENDPOINT_SEP}")
         ]
         if not matches:
             raise ValueError(f"Could not parse namespace from endpoint: {endpoint}")
@@ -134,20 +136,18 @@ class ReachabilityCreator():
         """Return '*' for clusterwide policies, otherwise the real namespace name."""
         return WILDCARD if clusterwide else namespace
 
-    def _encode_endpoint(self, namespace, workload=WILDCARD, port=WILDCARD, protocol=WILDCARD, collapse_namespace=True):
+    def _namespace_endpoint(self, namespace):
+        """Encode a namespace-level endpoint: namespace_*_*_*."""
+        return self._encode_endpoint(namespace)
+
+    def _encode_endpoint(self, namespace, workload=WILDCARD, port=WILDCARD, protocol=WILDCARD):
         """Build an endpoint string from namespace, workload, port, and protocol components."""
         workload = str(workload) if workload != WILDCARD else WILDCARD
         port = str(port) if port != WILDCARD else WILDCARD
-        if collapse_namespace and workload == WILDCARD and port == WILDCARD and protocol == WILDCARD:
-            return namespace
         return ENDPOINT_SEP.join([namespace, workload, port, protocol])
 
     def _parse_endpoint(self, endpoint):
         """Split an endpoint string into (namespace, workload, port, protocol) tuple."""
-        namespace_names = self.all_namespace_names()
-        if endpoint in namespace_names:
-            return endpoint, WILDCARD, WILDCARD, WILDCARD
-
         namespace = self._match_namespace(endpoint)
         remainder = endpoint[len(namespace) + len(ENDPOINT_SEP):]
         parts = remainder.split(ENDPOINT_SEP) if remainder else []
@@ -181,7 +181,7 @@ class ReachabilityCreator():
     def _endpoint_parent_chain(self, endpoint_name):
         """
         Return broader parent endpoints by wildcarding protocol, port, then workload.
-        Stops before bare namespace when the original endpoint had a workload (pod selector).
+        Stops before namespace_*_*_* when the original endpoint had a workload (pod selector).
         """
         ns, wl, pt, pr = self._parse_endpoint(endpoint_name)
         had_identity = wl != WILDCARD
@@ -199,7 +199,7 @@ class ReachabilityCreator():
             collapse = wl == WILDCARD and pt == WILDCARD and pr == WILDCARD
             if collapse and (ns == WILDCARD or had_identity):
                 break
-            parents.append(self._encode_endpoint(ns, wl, pt, pr, collapse_namespace=collapse))
+            parents.append(self._encode_endpoint(ns, wl, pt, pr))
             if collapse:
                 break
         return parents
@@ -247,7 +247,7 @@ class ReachabilityCreator():
             source_namespaces = self.all_namespace_names() if clusterwide else [policy.namespace]
             if policy.source_labels == {}:
                 for namespace_name in source_namespaces:
-                    sources[namespace_name] = 1
+                    sources[self._namespace_endpoint(namespace_name)] = 1
             else:
                 for namespace_name in source_namespaces:
                     for workload in self.workloads.get(namespace_name, []):
@@ -286,7 +286,7 @@ class ReachabilityCreator():
             if rule.policy_type == "Egress":
                 if policy.source_labels == {}:
                     for namespace_name in source_namespaces:
-                        sources[namespace_name] = 1
+                        sources[self._namespace_endpoint(namespace_name)] = 1
                 else:
                     for namespace_name in source_namespaces:
                         for workload in self.workloads.get(namespace_name, []):
@@ -295,7 +295,7 @@ class ReachabilityCreator():
 
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
-                        targets[namespace_name] = 1
+                        targets[self._namespace_endpoint(namespace_name)] = 1
                 elif rule.ip_block_cidr:
                     self._add_ipblock_endpoints(
                         targets, targeted_namespaces, rule.ip_block_cidr, rule.ports, clusterwide,
@@ -303,7 +303,7 @@ class ReachabilityCreator():
                 elif rule.target_labels == {}:
                     if len(rule.ports) == 0:
                         for namespace in targeted_namespaces:
-                            targets[namespace] = 1
+                            targets[self._namespace_endpoint(namespace)] = 1
                     else:
                         for namespace in targeted_namespaces:
                             for port in rule.ports:
@@ -315,7 +315,7 @@ class ReachabilityCreator():
             else:
                 if allow_all:
                     for namespace_name in self.all_namespace_names():
-                        sources[namespace_name] = 1
+                        sources[self._namespace_endpoint(namespace_name)] = 1
                 elif rule.ip_block_cidr:
                     self._add_ipblock_endpoints(
                         sources, targeted_namespaces, rule.ip_block_cidr, rule.ports, clusterwide,
@@ -323,7 +323,7 @@ class ReachabilityCreator():
                 else:
                     for namespace in targeted_namespaces:
                         if rule.target_labels == {}:
-                            sources[namespace] = 1
+                            sources[self._namespace_endpoint(namespace)] = 1
                         else:
                             for workload in self.workloads.get(namespace, []):
                                 if self._labels_match(workload.labels, rule.target_labels):
@@ -333,7 +333,7 @@ class ReachabilityCreator():
                 if policy.source_labels == {}:
                     if len(rule.ports) == 0:
                         for namespace_name in ingress_target_namespaces:
-                            targets[namespace_name] = 1
+                            targets[self._namespace_endpoint(namespace_name)] = 1
                     else:
                         for namespace_name in ingress_target_namespaces:
                             for port in rule.ports:
@@ -361,7 +361,7 @@ class ReachabilityCreator():
     def _ensure_endpoint_columns(self, endpoints):
         """Add missing endpoint columns to both matrices, initialized to allowed (1)."""
         for endpoint in endpoints:
-            if endpoint in self.all_namespace_names():
+            if self._is_namespace_endpoint(endpoint):
                 continue
             if endpoint not in self.egress_matrix.columns:
                 self.egress_matrix[endpoint] = 1
@@ -463,15 +463,16 @@ class ReachabilityCreator():
 
     def apply_namespace_policy_deny(self, source_workloads, policy_type, policy_namespace):
         """Apply implicit deny-all at namespace granularity for empty-rule policies."""
+        namespace_endpoint = self._namespace_endpoint(policy_namespace)
         if policy_type == "Ingress":
-            if policy_namespace not in self.ingress_matrix.columns:
-                self.ingress_matrix[policy_namespace] = 1
-            self.ingress_matrix[policy_namespace] = 0
-            self.update_is_policy_applied(policy_type, policy_namespace)
+            if namespace_endpoint not in self.ingress_matrix.columns:
+                self.ingress_matrix[namespace_endpoint] = 1
+            self.ingress_matrix[namespace_endpoint] = 0
+            self.update_is_policy_applied(policy_type, namespace_endpoint)
             return
 
         for source in source_workloads:
-            if source not in self.all_namespace_names():
+            if not self._is_namespace_endpoint(source):
                 self._ensure_egress_row(source)
                 self._ensure_ingress_row(source)
             self.egress_matrix.loc[source] = 0
@@ -484,10 +485,11 @@ class ReachabilityCreator():
         """
         if policy_type == "Ingress":
             if len(target_endpoints) == 0:
-                if policy_namespace not in self.ingress_matrix.columns:
-                    self.ingress_matrix[policy_namespace] = 1
-                self.ingress_matrix[policy_namespace] = 0
-                self.update_is_policy_applied(policy_type, policy_namespace)
+                namespace_endpoint = self._namespace_endpoint(policy_namespace)
+                if namespace_endpoint not in self.ingress_matrix.columns:
+                    self.ingress_matrix[namespace_endpoint] = 1
+                self.ingress_matrix[namespace_endpoint] = 0
+                self.update_is_policy_applied(policy_type, namespace_endpoint)
                 return
 
             for target in target_endpoints:
@@ -552,9 +554,10 @@ class ReachabilityCreator():
         """Apply a deny rule (Cilium egressDeny or ingressDeny) to the matrix."""
         if policy_type == "Ingress":
             if len(target_endpoints) == 0:
-                if policy_namespace not in self.ingress_matrix.columns:
-                    self.ingress_matrix[policy_namespace] = 1
-                self.ingress_matrix[policy_namespace] = 0
+                namespace_endpoint = self._namespace_endpoint(policy_namespace)
+                if namespace_endpoint not in self.ingress_matrix.columns:
+                    self.ingress_matrix[namespace_endpoint] = 1
+                self.ingress_matrix[namespace_endpoint] = 0
                 return
 
             for target in target_endpoints:
@@ -602,8 +605,10 @@ class ReachabilityCreator():
 
     # Query resolution: match all applicable matrix endpoints, then decide by tier priority.
 
-    def _is_bare_namespace(self, endpoint):
-        return endpoint in self.all_namespace_names()
+    def _is_namespace_endpoint(self, endpoint):
+        """Return True when endpoint is namespace-level: namespace_*_*_*."""
+        ep_ns, ep_wl, ep_pt, ep_pr = self._parse_endpoint(endpoint)
+        return ep_wl == WILDCARD and ep_pt == WILDCARD and ep_pr == WILDCARD and ep_ns != WILDCARD
 
     def _matches_port_protocol(self, ep_port, ep_protocol, port, protocol):
         """Return True when a destination endpoint port/protocol matches the query."""
@@ -622,8 +627,9 @@ class ReachabilityCreator():
 
     def _matches_endpoint(self, endpoint, namespace, workload=None, port=None, protocol=None, role="destination"):
         """Return True when a matrix row/column matches the query."""
-        if self._is_bare_namespace(endpoint):
-            return endpoint == namespace
+        if self._is_namespace_endpoint(endpoint):
+            ep_ns, _, _, _ = self._parse_endpoint(endpoint)
+            return ep_ns == namespace
 
         ep_ns, ep_wl, ep_pt, ep_pr = self._parse_endpoint(endpoint)
         if ep_ns != WILDCARD and ep_ns != namespace:

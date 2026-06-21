@@ -1,4 +1,4 @@
-,database-ns,backend-ns,frontend-ns
-database-ns,1,1,1
-backend-ns,0,0,0
-frontend-ns,1,1,1
+,database-ns_*_*_*,backend-ns_*_*_*,frontend-ns_*_*_*
+database-ns_*_*_*,1,1,1
+backend-ns_*_*_*,0,0,0
+frontend-ns_*_*_*,1,1,1

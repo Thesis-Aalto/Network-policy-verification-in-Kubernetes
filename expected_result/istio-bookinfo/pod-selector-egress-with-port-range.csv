@@ -1,7 +1,7 @@
-,bookinfo-frontend-ns,bookinfo-services-ns,bookinfo-data-ns,bookinfo-services-ns_details-v1_9080-9090_TCP,bookinfo-services-ns_ClusterIP-details_9080-9090_TCP,bookinfo-services-ns_details-v1_9080-9090_*,bookinfo-services-ns_details-v1_*_*,bookinfo-services-ns_ClusterIP-details_9080-9090_*,bookinfo-services-ns_ClusterIP-details_*_*
-bookinfo-frontend-ns,1,1,1,1,1,1,1,1,1
-bookinfo-services-ns,1,1,1,1,1,1,1,1,1
-bookinfo-data-ns,1,1,1,1,1,1,1,1,1
+,bookinfo-frontend-ns_*_*_*,bookinfo-services-ns_*_*_*,bookinfo-data-ns_*_*_*,bookinfo-services-ns_details-v1_9080-9090_TCP,bookinfo-services-ns_ClusterIP-details_9080-9090_TCP,bookinfo-services-ns_details-v1_9080-9090_*,bookinfo-services-ns_details-v1_*_*,bookinfo-services-ns_ClusterIP-details_9080-9090_*,bookinfo-services-ns_ClusterIP-details_*_*
+bookinfo-frontend-ns_*_*_*,1,1,1,1,1,1,1,1,1
+bookinfo-services-ns_*_*_*,1,1,1,1,1,1,1,1,1
+bookinfo-data-ns_*_*_*,1,1,1,1,1,1,1,1,1
 bookinfo-services-ns_reviews-v1_*_*,0,0,0,1,1,0,0,0,0
 bookinfo-services-ns_reviews-v2_*_*,0,0,0,1,1,0,0,0,0
 bookinfo-services-ns_reviews-v3_*_*,0,0,0,1,1,0,0,0,0
