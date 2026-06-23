@@ -1,0 +1,27 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-egress-deny
+  namespace: bookinfo-frontend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: productpage
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-services-ns
+        app: reviews
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: bookinfo-data-ns
+        app: ratings
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP

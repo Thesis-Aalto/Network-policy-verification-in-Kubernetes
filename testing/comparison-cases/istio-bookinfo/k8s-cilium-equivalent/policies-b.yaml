@@ -1,0 +1,14 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress-lockdown-9080
+  namespace: bookinfo-services-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: details
+  ingress:
+  - toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP

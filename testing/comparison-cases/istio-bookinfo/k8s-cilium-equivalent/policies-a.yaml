@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-lockdown-9080
+  namespace: bookinfo-services-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: details
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 9080

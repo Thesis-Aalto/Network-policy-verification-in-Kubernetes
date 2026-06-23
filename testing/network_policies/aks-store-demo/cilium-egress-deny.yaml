@@ -1,0 +1,22 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-egress-deny
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: makeline-service
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: product-service
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: database-ns
+        app: mongodb
+    toPorts:
+    - ports:
+      - port: "27017"
+        protocol: TCP

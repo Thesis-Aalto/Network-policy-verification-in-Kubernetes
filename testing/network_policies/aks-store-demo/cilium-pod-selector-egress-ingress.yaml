@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-pod-selector-egress-ingress
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: makeline-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: order-service
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: product-service

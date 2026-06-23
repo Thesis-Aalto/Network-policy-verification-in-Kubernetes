@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pod-namespace-selector-combined
+  namespace: database-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: backend-ns
+      podSelector:
+        matchLabels:
+          app: makeline-service
+    ports:
+    - protocol: TCP
+      port: 27017

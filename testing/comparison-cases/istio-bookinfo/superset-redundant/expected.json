@@ -1,0 +1,4 @@
+{
+  "equal": true,
+  "description": "Port-specific rule is redundant when a superset rule already allows all ports from details to reviews."
+}

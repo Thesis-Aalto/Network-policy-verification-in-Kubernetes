@@ -1,0 +1,4 @@
+{
+  "equal": true,
+  "description": "Kubernetes and Cilium egress policies restricting order-service to makeline-service on TCP/3001 produce equivalent reachability."
+}

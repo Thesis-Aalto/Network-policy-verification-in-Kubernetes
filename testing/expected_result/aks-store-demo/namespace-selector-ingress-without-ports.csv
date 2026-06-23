@@ -1,0 +1,4 @@
+,database-ns_*_*_*,backend-ns_*_*_*,frontend-ns_*_*_*
+database-ns_*_*_*,0,1,1
+backend-ns_*_*_*,1,1,1
+frontend-ns_*_*_*,0,1,1

@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: order-to-makeline-3001
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: order-service
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: makeline-service
+    toPorts:
+    - ports:
+      - port: "3001"
+        protocol: TCP

@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pod-selector-egress-with-ports
+  namespace: bookinfo-services-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: reviews
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: details
+    ports:
+    - protocol: TCP
+      port: 9080

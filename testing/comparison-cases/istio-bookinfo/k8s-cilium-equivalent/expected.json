@@ -1,0 +1,4 @@
+{
+  "equal": true,
+  "description": "Kubernetes and Cilium ingress policies with the same port restriction produce equivalent reachability."
+}

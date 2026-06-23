@@ -1,0 +1,4 @@
+{
+  "equal": true,
+  "description": "Port-specific egress rule is redundant when order-service may already reach makeline-service on all ports."
+}
