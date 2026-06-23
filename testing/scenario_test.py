@@ -23,11 +23,13 @@ class ScenarioTest:
         application_folder_path,
         result_folder_path,
         comparison_cases_path=None,
+        query_cases_path=None,
     ):
         self.policy_folder_path = Path(policy_folder_path)
         self.application_folder_path = Path(application_folder_path)
         self.result_folder_path = Path(result_folder_path)
         self.comparison_cases_path = Path(comparison_cases_path or TEST_DIR / "comparison-cases")
+        self.query_cases_path = Path(query_cases_path or TEST_DIR / "query-cases")
 
     def _matrix_diff_summary(self, expected_matrix, actual_matrix):
         expected_rows = set(expected_matrix.index)
@@ -75,9 +77,12 @@ class ScenarioTest:
             return str(directory_path)
         raise FileNotFoundError(f"Missing policies-{side}.yaml or policies-{side}/ in {case_path}")
 
-    def _load_comparison_expected(self, case_path):
-        with open(Path(case_path) / "expected.json", encoding="utf-8") as handle:
+    def _load_json(self, path):
+        with open(path, encoding="utf-8") as handle:
             return json.load(handle)
+
+    def _load_comparison_expected(self, case_path):
+        return self._load_json(Path(case_path) / "expected.json")
 
     def start_reachability_tests(self):
         total_counter = 0
@@ -199,10 +204,106 @@ class ScenarioTest:
 
         return correct_counter, total_counter
 
+    def start_query_reachability_tests(self):
+        total_counter = 0
+        correct_counter = 0
+
+        if not self.query_cases_path.is_dir():
+            return correct_counter, total_counter
+
+        for testbed in sorted(os.listdir(self.query_cases_path)):
+            testbed_path = self.query_cases_path / testbed
+            if not testbed_path.is_dir():
+                continue
+
+            application = self.application_folder_path / testbed
+            policy_folder = self.policy_folder_path / testbed
+            if not application.is_dir() or not policy_folder.is_dir():
+                continue
+
+            print(f"query_reachability tests for {testbed}")
+            print("---------------------------------")
+
+            container_discoverer = ContainerDiscoverer(str(application))
+            workloads = container_discoverer.workloads
+            services = container_discoverer.services
+            namespaces = container_discoverer.namespaces
+
+            for case_name in sorted(os.listdir(testbed_path)):
+                case_path = testbed_path / case_name
+                expected_path = case_path / "expected.json"
+                if not case_path.is_dir() or not expected_path.is_file():
+                    continue
+
+                case_data = self._load_json(expected_path)
+                policy_file = case_data["policy_file"]
+                policy_parser = PolicyParser(str(policy_folder / policy_file))
+                reachability_creator = ReachabilityCreator(
+                    services, workloads, namespaces, policy_parser.network_policies,
+                )
+                reachability_creator.create_reachability_matrix()
+
+                for query_case in case_data["queries"]:
+                    total_counter += 1
+                    query = query_case["query"]
+                    expected = query_case["expected"]
+                    result = reachability_creator.query_reachability(**query)
+
+                    print("---------------------------------")
+                    print(f"Test case {total_counter}: {case_name}/{query_case['name']}")
+                    if query_case.get("description"):
+                        print(query_case["description"])
+
+                    passed = False
+                    if expected.get("invalid"):
+                        passed = result == "invalid query"
+                        if not passed:
+                            print("Test Result: WRONG")
+                            print("Expected invalid query")
+                            print(f"Got: {result}")
+                    else:
+                        if result == "invalid query":
+                            print("Test Result: WRONG")
+                            print("Expected a valid query result")
+                        elif (
+                            result["reachable"] == expected["reachable"]
+                            and result["tier"] == expected["tier"]
+                        ):
+                            passed = True
+                        else:
+                            print("Test Result: WRONG")
+                            print(
+                                f"Expected reachable={expected['reachable']}, tier={expected['tier']}"
+                            )
+                            print(f"Got reachable={result['reachable']}, tier={result['tier']}")
+                            if result.get("deciding_match"):
+                                print(f"Deciding match: {result['deciding_match']}")
+
+                    if passed:
+                        correct_counter += 1
+                        print("Test result: CORRECT")
+                    print("---------------------------------")
+
+            print("Total Results")
+            print("---------------------------------")
+            print(
+                f"Number of Tests: {total_counter}\n"
+                f"Number of Correct: {correct_counter}\n"
+                f"Success Percentage: {100 * correct_counter / total_counter if total_counter else 0}"
+            )
+            print("---------------------------------")
+            print("---------------------------------")
+
+        return correct_counter, total_counter
+
     def start_test(self):
         reachability_correct, reachability_total = self.start_reachability_tests()
         simplifier_correct, simplifier_total = self.start_policy_simplifier_tests()
-        return reachability_correct + simplifier_correct, reachability_total + simplifier_total
+        query_correct, query_total = self.start_query_reachability_tests()
+        return (
+            reachability_correct + simplifier_correct + query_correct,
+            reachability_total + simplifier_total + query_total,
+        )
 
 
 if __name__ == "__main__":
@@ -211,6 +312,7 @@ if __name__ == "__main__":
         application_folder_path=TEST_DIR / "application",
         result_folder_path=TEST_DIR / "expected_result",
         comparison_cases_path=TEST_DIR / "comparison-cases",
+        query_cases_path=TEST_DIR / "query-cases",
     )
     correct, total = scenario_test.start_test()
     if correct != total:

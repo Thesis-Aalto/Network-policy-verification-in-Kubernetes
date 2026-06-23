@@ -1,0 +1,47 @@
+{
+  "policy_file": "pod-selector-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_and_egress_path",
+      "description": "Combined ingress and egress policy allows order-service to reach makeline-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_egress_path",
+      "description": "makeline-service may egress to product-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_combined_policy",
+      "description": "makeline-service may not egress to order-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "order-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

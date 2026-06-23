@@ -1,0 +1,33 @@
+{
+  "policy_file": "cilium-pod-selector-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_ingress",
+      "description": "Cilium ingress rule allows order-service to reach makeline-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_ingress",
+      "description": "Cilium ingress policy denies product-service to makeline-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "product-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

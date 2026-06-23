@@ -1,0 +1,37 @@
+{
+  "policy_file": "namespace-selector-egress-with-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_namespace_egress",
+      "description": "backend-ns workloads may egress to database-ns rabbitmq on TCP/5672",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "order-service",
+        "dest_workload": "rabbitmq",
+        "port": 5672,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_namespace_egress",
+      "description": "backend-ns workloads may not egress to rabbitmq on TCP/27017",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "order-service",
+        "dest_workload": "rabbitmq",
+        "port": 27017,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

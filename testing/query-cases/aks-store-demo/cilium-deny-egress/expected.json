@@ -1,0 +1,35 @@
+{
+  "policy_file": "cilium-egress-deny.yaml",
+  "queries": [
+    {
+      "name": "allowed_before_deny",
+      "description": "Cilium egress allow rule permits makeline-service to reach product-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_by_egress_deny",
+      "description": "Cilium egressDeny blocks makeline-service from reaching mongodb on TCP/27017",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "mongodb",
+        "port": 27017,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "cilium_deny"
+      }
+    }
+  ]
+}

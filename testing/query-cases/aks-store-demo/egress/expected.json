@@ -1,0 +1,35 @@
+{
+  "policy_file": "pod-selector-egress-with-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_egress",
+      "description": "order-service may egress to makeline-service on TCP/3001",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service",
+        "port": 3001,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_egress",
+      "description": "order-service may not egress to product-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}
