@@ -1,7 +1,7 @@
 from container_discoverer import ContainerDiscoverer
 from policy_parser import PolicyParser
 from reachability_creator import ReachabilityCreator
-from kubesonde_test import KubesondeTest
+from testing.kubesonde_test import KubesondeTest
 
 import sys
 

@@ -1,7 +1,0 @@
-,bookinfo-frontend-ns_*_*_*,bookinfo-services-ns_*_*_*,bookinfo-data-ns_*_*_*,bookinfo-services-ns_details-v1_*_*,bookinfo-services-ns_ClusterIP-details_*_*
-bookinfo-frontend-ns_*_*_*,1,1,1,0,0
-bookinfo-services-ns_*_*_*,1,1,1,0,0
-bookinfo-data-ns_*_*_*,1,1,1,0,0
-bookinfo-services-ns_reviews-v1_*_*,1,1,1,1,1
-bookinfo-services-ns_reviews-v2_*_*,1,1,1,1,1
-bookinfo-services-ns_reviews-v3_*_*,1,1,1,1,1

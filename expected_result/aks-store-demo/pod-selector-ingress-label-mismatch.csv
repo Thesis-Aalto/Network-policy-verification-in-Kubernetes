@@ -1,4 +1,0 @@
-,database-ns_*_*_*,backend-ns_*_*_*,frontend-ns_*_*_*,backend-ns_product-service_*_*,backend-ns_ClusterIP-product-service_*_*
-database-ns_*_*_*,1,1,1,0,0
-backend-ns_*_*_*,1,1,1,0,0
-frontend-ns_*_*_*,1,1,1,0,0

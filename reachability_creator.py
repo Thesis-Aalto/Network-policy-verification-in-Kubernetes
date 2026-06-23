@@ -680,15 +680,7 @@ class ReachabilityCreator():
         match = matches[0]
         return match["value"] == 1, match, match["tier"]
 
-    def query_reachability(
-        self,
-        source_namespace,
-        dest_namespace,
-        source_workload=None,
-        dest_workload=None,
-        port=None,
-        protocol=None,
-    ):
+    def query_reachability(self, source_namespace, dest_namespace, source_workload=None, dest_workload=None, port=None, protocol=None):
         """
         Match all applicable matrix rows/columns for the query, then resolve by tier priority.
         Returns a result dict, or "invalid query" when nothing matches.
@@ -734,6 +726,8 @@ class ReachabilityCreator():
         if self.reachability_matrix.empty:
             print("Empty reachability matrix.")
             return
+        print(self.egress_matrix)
+        print(self.ingress_matrix)
         print(self.reachability_matrix)
 
 

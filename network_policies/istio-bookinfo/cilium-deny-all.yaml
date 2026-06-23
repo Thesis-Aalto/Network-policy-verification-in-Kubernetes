@@ -1,7 +1,0 @@
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: cilium-deny-all
-  namespace: bookinfo-services-ns
-spec:
-  endpointSelector: {}
