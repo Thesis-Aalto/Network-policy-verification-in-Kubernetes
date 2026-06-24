@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ipblock-ingress
+  namespace: database-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mongodb
+  ingress:
+  - fromCIDR:
+    - 172.17.0.0/16
+    toPorts:
+    - ports:
+      - port: "27017"
+        protocol: TCP

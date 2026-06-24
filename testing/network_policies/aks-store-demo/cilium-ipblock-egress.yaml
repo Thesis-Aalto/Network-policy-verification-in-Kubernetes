@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ipblock-egress
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: order-service
+  egress:
+  - toCIDR:
+    - 10.0.0.0/24
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP

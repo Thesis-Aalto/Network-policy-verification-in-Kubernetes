@@ -1,0 +1,53 @@
+{
+  "policy_file": "cilium-ipblock-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_ingress_cidr",
+      "description": "Cilium ingress fromCIDR allows 172.17.0.0/16 to reach mongodb on TCP/27017",
+      "query": {
+        "source_namespace": "database-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "172.17.0.0/16",
+        "dest_workload": "mongodb",
+        "port": 27017,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_cilium_ingress_ip_in_cidr",
+      "description": "Cilium ingress fromCIDR allows an IP inside the CIDR to reach mongodb",
+      "query": {
+        "source_namespace": "database-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "172.17.5.1",
+        "dest_workload": "mongodb",
+        "port": 27017,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_ingress_pod",
+      "description": "Cilium ingress fromCIDR denies order-service to mongodb",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "order-service",
+        "dest_workload": "mongodb",
+        "port": 27017,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

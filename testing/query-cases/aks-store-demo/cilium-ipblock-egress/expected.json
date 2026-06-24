@@ -1,0 +1,51 @@
+{
+  "policy_file": "cilium-ipblock-egress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_egress_cidr",
+      "description": "Cilium egress toCIDR allows order-service to reach 10.0.0.0/24 on TCP/443",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "10.0.0.0/24",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_cilium_egress_ip_in_cidr",
+      "description": "Cilium egress toCIDR allows order-service to reach an IP inside the CIDR",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "10.0.0.50",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress_pod",
+      "description": "Cilium egress toCIDR denies order-service to product-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}
