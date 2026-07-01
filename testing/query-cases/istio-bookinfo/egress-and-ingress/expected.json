@@ -1,0 +1,47 @@
+{
+  "policy_file": "pod-selector-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_path",
+      "description": "Combined policy allows details-v1 to reach reviews-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "details-v1",
+        "dest_workload": "reviews-v1"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_egress_path",
+      "description": "reviews-v1 may egress to details-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_combined_policy",
+      "description": "productpage-v1 may not reach reviews-v1 under the combined policy",
+      "query": {
+        "source_namespace": "bookinfo-frontend-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "productpage-v1",
+        "dest_workload": "reviews-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

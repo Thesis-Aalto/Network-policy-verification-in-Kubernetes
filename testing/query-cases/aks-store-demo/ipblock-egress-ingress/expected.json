@@ -1,0 +1,51 @@
+{
+  "policy_file": "ipblock-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_from_cidr",
+      "description": "makeline-service accepts ingress from 172.17.5.1 on TCP/3001",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "172.17.5.1",
+        "dest_workload": "makeline-service",
+        "port": 3001,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_egress_to_cidr",
+      "description": "makeline-service may egress to 10.0.0.50 on TCP/443",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "10.0.0.50",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_egress_to_pod",
+      "description": "makeline-service may not egress to product-service when only the CIDR is allowed",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

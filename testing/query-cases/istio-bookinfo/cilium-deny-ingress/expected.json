@@ -1,0 +1,37 @@
+{
+  "policy_file": "cilium-ingress-deny.yaml",
+  "queries": [
+    {
+      "name": "allowed_before_deny",
+      "description": "Cilium ingress allow rule permits reviews-v1 to reach ratings-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "ratings-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_by_ingress_deny",
+      "description": "Cilium ingressDeny blocks productpage-v1 from reaching ratings-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-frontend-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "productpage-v1",
+        "dest_workload": "ratings-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "cilium_deny"
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "policy_file": "ipblock-ingress-without-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_cidr_without_port",
+      "description": "172.17.0.0/16 may reach ratings-v1 without a port restriction",
+      "query": {
+        "source_namespace": "bookinfo-data-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "172.17.0.0/16",
+        "dest_workload": "ratings-v1"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_ingress_pod",
+      "description": "reviews-v1 may not reach ratings-v1 when only the CIDR is allowed as a source",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "ratings-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

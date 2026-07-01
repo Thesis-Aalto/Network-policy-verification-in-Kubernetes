@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: order-to-makeline-3001
+  name: ipblock-egress-without-ports
   namespace: backend-ns
 spec:
   podSelector:
@@ -11,8 +11,5 @@ spec:
   - Egress
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: makeline-service
-    ports:
-    - port: 3001
+    - ipBlock:
+        cidr: 10.0.0.0/24

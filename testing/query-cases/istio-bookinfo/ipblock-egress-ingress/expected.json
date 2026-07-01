@@ -1,0 +1,51 @@
+{
+  "policy_file": "ipblock-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_from_cidr",
+      "description": "reviews-v1 accepts ingress from 172.17.5.1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "172.17.5.1",
+        "dest_workload": "reviews-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_egress_to_cidr",
+      "description": "reviews-v1 may egress to 10.0.0.50 on TCP/443",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "10.0.0.50",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_egress_to_pod",
+      "description": "reviews-v1 may not egress to details-v1 when only the CIDR is allowed",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

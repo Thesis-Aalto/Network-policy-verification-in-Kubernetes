@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ipblock-ingress
+  namespace: bookinfo-data-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ratings
+  ingress:
+  - fromCIDR:
+    - 172.17.0.0/16
+    toPorts:
+    - ports:
+      - port: "9080"
+        protocol: TCP

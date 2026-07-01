@@ -1,0 +1,33 @@
+{
+  "policy_file": "ipblock-egress-without-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_egress_cidr_without_port",
+      "description": "order-service may egress to 10.0.0.0/24 without a port restriction",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "10.0.0.0/24"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_egress_pod",
+      "description": "order-service may not egress to makeline-service when only the CIDR is allowed",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

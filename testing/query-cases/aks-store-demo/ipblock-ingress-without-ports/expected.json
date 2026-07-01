@@ -1,0 +1,33 @@
+{
+  "policy_file": "ipblock-ingress-without-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress_cidr_without_port",
+      "description": "172.17.0.0/16 may reach mongodb without a port restriction",
+      "query": {
+        "source_namespace": "database-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "172.17.0.0/16",
+        "dest_workload": "mongodb"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_ingress_pod",
+      "description": "order-service may not reach mongodb when only the CIDR is allowed as a source",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "database-ns",
+        "source_workload": "order-service",
+        "dest_workload": "mongodb"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

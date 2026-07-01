@@ -1,0 +1,35 @@
+{
+  "policy_file": "cilium-ipblock-egress-port-range.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_egress_cidr_in_range",
+      "description": "Cilium toCIDR allows order-service to reach 10.0.0.0/24 on TCP/445",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "10.0.0.0/24",
+        "port": 445,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress_pod",
+      "description": "Cilium toCIDR denies order-service to makeline-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

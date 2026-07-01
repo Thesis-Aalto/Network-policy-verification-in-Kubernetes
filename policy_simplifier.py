@@ -19,7 +19,23 @@ class PolicySimplifier:
         self.application_path = application_path
         self.policies_a_path = policies_a_path
         self.policies_b_path = policies_b_path
+        self._init_from_policy_lists(
+            application_path,
+            self._load_policies(policies_a_path),
+            self._load_policies(policies_b_path),
+        )
 
+    @classmethod
+    def from_policy_lists(cls, application_path, policies_a, policies_b):
+        """Create a simplifier from in-memory policy lists (e.g. for benchmarks)."""
+        instance = cls.__new__(cls)
+        instance.application_path = application_path
+        instance.policies_a_path = None
+        instance.policies_b_path = None
+        instance._init_from_policy_lists(application_path, policies_a, policies_b)
+        return instance
+
+    def _init_from_policy_lists(self, application_path, policies_a, policies_b):
         container_discoverer = ContainerDiscoverer(application_path)
         self.services = container_discoverer.services
         self.workloads = container_discoverer.workloads
@@ -29,13 +45,13 @@ class PolicySimplifier:
             self.services,
             self.workloads,
             self.namespaces,
-            self._load_policies(policies_a_path),
+            policies_a,
         )
         self.rc_b = ReachabilityCreator(
             self.services,
             self.workloads,
             self.namespaces,
-            self._load_policies(policies_b_path),
+            policies_b,
         )
         self.matrix_a = self.rc_a.create_reachability_matrix().astype(int)
         self.matrix_b = self.rc_b.create_reachability_matrix().astype(int)

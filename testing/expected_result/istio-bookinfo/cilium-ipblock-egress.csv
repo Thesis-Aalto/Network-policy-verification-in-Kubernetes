@@ -1,0 +1,7 @@
+,bookinfo-frontend-ns_*_*_*,bookinfo-services-ns_*_*_*,bookinfo-data-ns_*_*_*,bookinfo-services-ns_10.0.0.0/24_443_TCP,bookinfo-services-ns_10.0.0.0/24_443_*,bookinfo-services-ns_10.0.0.0/24_*_*
+bookinfo-frontend-ns_*_*_*,1,1,1,1,1,1
+bookinfo-services-ns_*_*_*,1,1,1,1,1,1
+bookinfo-data-ns_*_*_*,1,1,1,1,1,1
+bookinfo-services-ns_reviews-v1_*_*,0,0,0,1,0,0
+bookinfo-services-ns_reviews-v2_*_*,0,0,0,1,0,0
+bookinfo-services-ns_reviews-v3_*_*,0,0,0,1,0,0

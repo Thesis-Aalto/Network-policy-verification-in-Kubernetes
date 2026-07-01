@@ -1,0 +1,35 @@
+{
+  "policy_file": "ipblock-egress-port-range.yaml",
+  "queries": [
+    {
+      "name": "allowed_egress_cidr_in_range",
+      "description": "order-service may egress to 10.0.0.0/24 on TCP/445 inside the allowed port range",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "10.0.0.0/24",
+        "port": 445,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_egress_pod",
+      "description": "order-service may not egress to makeline-service when only the CIDR port range is allowed",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "order-service",
+        "dest_workload": "makeline-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

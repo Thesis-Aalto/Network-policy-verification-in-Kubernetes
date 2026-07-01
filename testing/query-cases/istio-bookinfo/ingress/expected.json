@@ -1,0 +1,37 @@
+{
+  "policy_file": "pod-selector-ingress-with-ports.yaml",
+  "queries": [
+    {
+      "name": "allowed_ingress",
+      "description": "reviews-v1 may send ingress traffic to details-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_ingress",
+      "description": "productpage-v1 may not send ingress traffic to details-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-frontend-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "productpage-v1",
+        "dest_workload": "details-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

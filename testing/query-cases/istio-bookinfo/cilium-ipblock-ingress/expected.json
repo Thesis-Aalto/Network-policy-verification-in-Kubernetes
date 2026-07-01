@@ -1,0 +1,53 @@
+{
+  "policy_file": "cilium-ipblock-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_ingress_cidr",
+      "description": "Cilium ingress fromCIDR allows 172.17.0.0/16 to reach ratings-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-data-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "172.17.0.0/16",
+        "dest_workload": "ratings-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_cilium_ingress_ip_in_cidr",
+      "description": "Cilium ingress fromCIDR allows an IP inside the CIDR to reach ratings-v1",
+      "query": {
+        "source_namespace": "bookinfo-data-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "172.17.5.1",
+        "dest_workload": "ratings-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_ingress_pod",
+      "description": "Cilium ingress fromCIDR denies reviews-v1 to ratings-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "ratings-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

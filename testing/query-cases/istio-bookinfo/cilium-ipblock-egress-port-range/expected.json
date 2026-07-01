@@ -1,0 +1,35 @@
+{
+  "policy_file": "cilium-ipblock-egress-port-range.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_egress_cidr_in_range",
+      "description": "Cilium toCIDR allows reviews-v1 to reach 10.0.0.0/24 on TCP/445",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "10.0.0.0/24",
+        "port": 445,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress_pod",
+      "description": "Cilium toCIDR denies reviews-v1 to details-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

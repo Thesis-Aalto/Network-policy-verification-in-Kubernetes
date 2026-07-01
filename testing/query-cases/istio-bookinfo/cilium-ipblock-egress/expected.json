@@ -1,0 +1,51 @@
+{
+  "policy_file": "cilium-ipblock-egress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_egress_cidr",
+      "description": "Cilium egress toCIDR allows reviews-v1 to reach 10.0.0.0/24 on TCP/443",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "10.0.0.0/24",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_cilium_egress_ip_in_cidr",
+      "description": "Cilium egress toCIDR allows reviews-v1 to reach an IP inside the CIDR",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "10.0.0.50",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress_pod",
+      "description": "Cilium egress toCIDR denies reviews-v1 to details-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "policy_file": "cilium-pod-selector-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_egress",
+      "description": "Cilium egress rule allows reviews-v1 to reach details-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "details-v1"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress",
+      "description": "Cilium egress policy denies reviews-v1 to ratings-v1",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-data-ns",
+        "source_workload": "reviews-v1",
+        "dest_workload": "ratings-v1"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

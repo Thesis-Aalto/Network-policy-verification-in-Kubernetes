@@ -1,0 +1,37 @@
+{
+  "policy_file": "cilium-clusterwide-cross-namespace.yaml",
+  "queries": [
+    {
+      "name": "allowed_clusterwide_ingress",
+      "description": "Clusterwide Cilium policy allows productpage-v1 to reach reviews-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-frontend-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "productpage-v1",
+        "dest_workload": "reviews-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_clusterwide_ingress",
+      "description": "Clusterwide policy denies details-v1 reaching reviews-v1 on TCP/9080",
+      "query": {
+        "source_namespace": "bookinfo-services-ns",
+        "dest_namespace": "bookinfo-services-ns",
+        "source_workload": "details-v1",
+        "dest_workload": "reviews-v1",
+        "port": 9080,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}

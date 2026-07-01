@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-ipblock-egress-port-range
+  namespace: backend-ns
+spec:
+  endpointSelector:
+    matchLabels:
+      app: order-service
+  egress:
+  - toCIDR:
+    - 10.0.0.0/24
+    toPorts:
+    - ports:
+      - port: "440"
+        endPort: 450
+        protocol: TCP

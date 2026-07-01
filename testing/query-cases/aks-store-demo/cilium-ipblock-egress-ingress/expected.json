@@ -1,0 +1,51 @@
+{
+  "policy_file": "cilium-ipblock-egress-ingress.yaml",
+  "queries": [
+    {
+      "name": "allowed_cilium_ingress_from_cidr",
+      "description": "Cilium fromCIDR allows 172.17.5.1 to reach makeline-service on TCP/3001",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "172.17.5.1",
+        "dest_workload": "makeline-service",
+        "port": 3001,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "allowed_cilium_egress_to_cidr",
+      "description": "Cilium toCIDR allows makeline-service to reach 10.0.0.50 on TCP/443",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "10.0.0.50",
+        "port": 443,
+        "protocol": "TCP"
+      },
+      "expected": {
+        "reachable": true,
+        "tier": "policy_allow"
+      }
+    },
+    {
+      "name": "denied_cilium_egress_to_pod",
+      "description": "Cilium toCIDR denies makeline-service to product-service",
+      "query": {
+        "source_namespace": "backend-ns",
+        "dest_namespace": "backend-ns",
+        "source_workload": "makeline-service",
+        "dest_workload": "product-service"
+      },
+      "expected": {
+        "reachable": false,
+        "tier": "policy_deny"
+      }
+    }
+  ]
+}
