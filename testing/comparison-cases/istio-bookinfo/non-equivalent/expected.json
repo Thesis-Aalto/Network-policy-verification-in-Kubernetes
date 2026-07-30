@@ -1,0 +1,4 @@
+{
+  "equal": false,
+  "description": "Ingress from details to reviews restricted to TCP/9080 is not equivalent to allowing all ports on the same flow."
+}

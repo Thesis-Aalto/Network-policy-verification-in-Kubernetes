@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-to-makeline-3001
+  namespace: backend-ns
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: makeline-service
+    ports:
+    - protocol: TCP
+      port: 3001

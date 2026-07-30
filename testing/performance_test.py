@@ -17,7 +17,7 @@ from reachability_creator import ReachabilityCreator
 
 TESTING_DIR = Path(__file__).resolve().parent
 APPLICATION_ROOT = TESTING_DIR / "application"
-DEFAULT_POLICY_COUNTS = (10, 100, 1000)
+DEFAULT_POLICY_COUNTS = (10, 25, 50, 100, 1000)
 DEFAULT_QUERY_COUNT = 1000
 DEFAULT_MATRIX_RUNS = 3
 

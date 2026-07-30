@@ -1,0 +1,4 @@
+{
+  "equal": false,
+  "description": "Port-restricted egress to makeline-service on TCP/3001 is not equivalent to allowing all ports on the same flow."
+}
